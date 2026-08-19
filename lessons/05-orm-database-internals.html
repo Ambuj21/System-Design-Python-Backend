@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 — ORM &amp; Database Internals</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="04-rest-graphql-api-design.html"><span class="pnl">&larr; previous</span>REST &amp; GraphQL API Design</a><a class="pn-next" href="06-redis-caching-patterns.html"><span class="pnl">next &rarr;</span>Redis Caching Patterns</a></nav>
+
+  <p class="kicker">Python backend mastery · Phase 1 · Lesson 05</p>
+  <h1>ORM &amp; Database Internals</h1>
+  <p class="lede">Your ORM turns <code>User.objects.filter(...)</code> into SQL and hands back objects — but whether that query costs 0.01ms or 3 seconds, and whether two concurrent requests quietly corrupt each other's data, is decided entirely below the ORM: in the B-tree, the query planner, and the transaction manager.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why this is an interview trap</h2>
+    <p>Ask a senior candidate how an index makes a query faster and most will say something like "it's like an index in a book — you don't have to scan every page." That's the right intuition and the wrong altitude for this interview. The follow-up that actually separates levels is: <em>"and what does that index cost you on every single write?"</em> Most candidates have never had to think about it, because the ORM issues <code>CREATE INDEX</code> once, in a migration, and never speaks of it again.</p>
+    <p class="tight">The same blind spot shows up twice more. Ask what isolation level a Django or SQLAlchemy transaction actually runs at, and you'll usually get silence — years of shipped code without knowing PostgreSQL defaults to READ COMMITTED, MySQL's InnoDB defaults to REPEATABLE READ, or that the gap between them is a specific, nameable set of anomalies that reach production. Ask why a connection pool ran dry under load, and the honest answer is often "I don't actually know what opening a database connection costs."</p>
+    <p class="tight">B-tree write amplification, planner index selection, isolation-level anomalies, and pool exhaustion are exactly the four things an ORM hides from you so you can move fast. That's a good trade — until the day it isn't, and the interview exists to find out whether you know where the trade was made. Every number in this lesson's hands-on section was run against a real SQLite B-tree and a real query planner on this machine, not simulated.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> A sorted structure that has to stay sorted</h2>
+    <p class="dek">A B-tree index isn't a lookup table sitting politely beside your data — it's a second, fully-maintained copy of your column's sort order, rebuilt page by page on every write that touches it.</p>
+    <p class="tight">A real B-tree page is 4KB–16KB and holds hundreds of entries, so the branching factor is enormous — a tree only 3–4 levels deep can address billions of rows. That's the whole reason a lookup on an indexed column is <b>O(log n)</b> page reads instead of an <b>O(n)</b> scan: with a branching factor of 500, log₅₀₀(1,000,000,000) ≈ 3.3. But every one of those levels is a page that some write has to keep correctly sorted — and a full page can't just accept a new key.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 720 190" role="img" aria-label="A B-tree index before and after inserting a key into a full leaf page. Before: a root page holding keys 18 and 42 points to three leaf pages; the middle leaf, holding 19, 24, 31 and 38, is full. After inserting 37: that leaf has split into two new leaf pages, and the root has grown a third key, 31, promoted up from the split.">
+        <text x="175" y="14" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor" fill-opacity="0.6">BEFORE — leaf full</text>
+        <text x="545" y="14" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor" fill-opacity="0.6">AFTER — split propagates to root</text>
+
+        <line x1="362" y1="8" x2="362" y2="180" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="362" y="102" text-anchor="middle" font-family="ui-monospace, monospace" font-size="20" fill="currentColor" fill-opacity="0.45">→</text>
+        <text x="362" y="120" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.6">insert 37</text>
+        <text x="362" y="131" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.6">triggers split</text>
+
+        <line x1="130" y1="58" x2="57" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+        <line x1="175" y1="58" x2="172" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+        <line x1="220" y1="58" x2="287" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+
+        <rect x="100" y="24" width="150" height="34" rx="7" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="175" y="46" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="currentColor">18 · 42</text>
+
+        <rect x="10" y="104" width="95" height="46" rx="7" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1.5"/>
+        <text x="57" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">5 · 9 · 14</text>
+
+        <rect x="120" y="104" width="105" height="46" rx="7" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.5"/>
+        <text x="172" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">19·24·31·38</text>
+        <text x="172" y="163" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--coral)">FULL — 4/4 slots</text>
+
+        <rect x="240" y="104" width="95" height="46" rx="7" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1.5"/>
+        <text x="287" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">45 · 50</text>
+
+        <line x1="172" y1="94" x2="172" y2="103" stroke="var(--amber)" stroke-width="2.2"/>
+        <polygon points="167,100 177,100 172,108" fill="var(--amber)"/>
+        <text x="172" y="88" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--amber)" font-weight="700">insert 37</text>
+
+        <line x1="432" y1="58" x2="416" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+        <line x1="507" y1="58" x2="496" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+        <line x1="582" y1="58" x2="576" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+        <line x1="657" y1="58" x2="656" y2="104" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.3"/>
+
+        <rect x="395" y="24" width="300" height="34" rx="7" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="545" y="46" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" fill="currentColor">18 · <tspan fill="var(--amber)" font-weight="700">31</tspan> · 42</text>
+
+        <rect x="380" y="104" width="72" height="46" rx="7" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1.5"/>
+        <text x="416" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="currentColor">5·9·14</text>
+
+        <rect x="460" y="104" width="72" height="46" rx="7" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.5"/>
+        <text x="496" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">19 · 24</text>
+
+        <rect x="540" y="104" width="72" height="46" rx="7" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.5"/>
+        <text x="576" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">37 · 38</text>
+
+        <rect x="620" y="104" width="72" height="46" rx="7" fill="none" stroke="currentColor" stroke-opacity="0.5" stroke-width="1.5"/>
+        <text x="656" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="currentColor">45·50</text>
+
+        <text x="536" y="163" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--teal)">NEW PAGES — median key 31 promoted</text>
+      </svg>
+      <figcaption>Every B-tree page has a fixed capacity — a real 4KB–16KB page holds hundreds of entries; 4 is used here only so the split is visible. Insert a key into a full leaf and the engine allocates a new page, moves half the keys into it, and pushes the median key up into the parent. If the parent is also full, the split cascades again, all the way to the root if it has to. One logical <code>INSERT</code> can become several physical page writes — once per index the table has.</figcaption>
+    </figure>
+    <p class="tight">That cascading rewrite is exactly what the write-cost numbers in the hands-on section below measure — and it's why "just add an index, it can't hurt" is one of the fastest ways to lose a schema-design question.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Watch an anomaly appear — or get blocked</h2>
+    <p class="dek">Pick an anomaly and an isolation level. Txn A and Txn B run the SQL shown below, interleaved. Press play and watch what Txn A's second statement actually returns.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Anomaly">
+          <button data-anomaly="dirty" aria-pressed="true">dirty read</button>
+          <button data-anomaly="nonrepeatable" aria-pressed="false">non-repeatable read</button>
+          <button data-anomaly="phantom" aria-pressed="false">phantom read</button>
+        </div>
+        <div class="tabgroup" role="group" aria-label="Isolation level">
+          <button data-level="ru" aria-pressed="true">READ UNCOMMITTED</button>
+          <button data-level="rc" aria-pressed="false">READ COMMITTED</button>
+          <button data-level="rr" aria-pressed="false">REPEATABLE READ</button>
+          <button data-level="ser" aria-pressed="false">SERIALIZABLE</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <label class="toggle-row" id="mvccToggleRow">
+          <input type="checkbox" id="mvccToggle">
+          simulate an MVCC engine (Postgres/MySQL) instead of lock-based blocking
+        </label>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="stat-line" id="resourceReadout"></span>
+          <button class="playbtn" id="playBtn">▶ Play</button>
+        </div>
+      </div>
+
+      <div class="label-row" style="margin-top:0;">the statements actually running</div>
+      <pre class="code" style="margin-bottom:16px;"><code id="sqlScript"></code></pre>
+
+      <div class="timeline">
+        <div class="timeline-inner" id="timelineInner">
+          <div class="ruler"><span>t=0</span><span>t=25</span><span>t=50</span><span>t=75</span><span>t=100</span></div>
+          <div id="lanes"></div>
+          <div class="playhead" id="playhead" data-t="0"></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>executing a statement</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>open, holding a snapshot/locks</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>blocked, waiting on a lock</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--grey-soft); border:1px solid var(--border)"></span>idle / not started</span>
+      </div>
+      <p class="console-note" id="consoleCaption"></p>
+      <p class="stat-line" id="verdictLine" style="margin-top:10px; font-size:0.92rem; font-weight:600;"></p>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">the isolation-level guarantee table</div>
+    <p class="dek" style="margin-top:0;">What the SQL standard promises at each level — independent of whether the engine implements it with locks or with MVCC snapshots.</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>READ UNCOMMITTED</h3>
+        <div class="bench-sub">weakest — reads may see other transactions' uncommitted writes</div>
+        <div class="bar-row"><div class="bar-label"><span>dirty read</span><span class="val" style="color:var(--coral)">can occur</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>non-repeatable read</span><span class="val" style="color:var(--coral)">can occur</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>phantom read</span><span class="val" style="color:var(--coral)">can occur</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div></div>
+      </div>
+      <div class="bench-card">
+        <h3>READ COMMITTED</h3>
+        <div class="bench-sub">Postgres &amp; SQL Server default — no uncommitted reads</div>
+        <div class="bar-row"><div class="bar-label"><span>dirty read</span><span class="val" style="color:var(--teal)">prevented</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>non-repeatable read</span><span class="val" style="color:var(--coral)">can occur</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>phantom read</span><span class="val" style="color:var(--coral)">can occur</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div></div>
+      </div>
+      <div class="bench-card">
+        <h3>REPEATABLE READ</h3>
+        <div class="bench-sub">MySQL/InnoDB default — one fixed snapshot per transaction</div>
+        <div class="bar-row"><div class="bar-label"><span>dirty read</span><span class="val" style="color:var(--teal)">prevented</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>non-repeatable read</span><span class="val" style="color:var(--teal)">prevented</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>phantom read</span><span class="val" style="color:var(--coral)">can occur*</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div></div>
+      </div>
+      <div class="bench-card">
+        <h3>SERIALIZABLE</h3>
+        <div class="bench-sub">strongest — equivalent to some serial ordering of all transactions</div>
+        <div class="bar-row"><div class="bar-label"><span>dirty read</span><span class="val" style="color:var(--teal)">prevented</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>non-repeatable read</span><span class="val" style="color:var(--teal)">prevented</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div></div>
+        <div class="bar-row"><div class="bar-label"><span>phantom read</span><span class="val" style="color:var(--teal)">prevented</span></div><div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div></div>
+      </div>
+    </div>
+    <p class="tight" style="margin-top:18px;"><b>The asterisk matters.</b> That's the ANSI SQL-92 promise, defined in terms of locking. PostgreSQL's REPEATABLE READ is actually a snapshot taken at the transaction's first statement, and that snapshot mechanically closes the phantom-read gap too, even though the standard doesn't require it at that level — a well-known place where Postgres's real behavior is <em>stronger</em> than what the level's name promises. MySQL/InnoDB plugs the same gap differently, with next-key (row-plus-gap) locks on writes. Don't assume either without checking the specific engine and version.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>PostgreSQL's B-tree, and its MVCC.</b> <code>CREATE INDEX</code> defaults to a B-tree — technically a B+tree, where every key lives in a leaf and leaves are linked so a range scan never has to climb back up. Because Postgres is MVCC end-to-end, dirty reads are structurally impossible at <em>any</em> isolation level, not just because READ COMMITTED forbids them — there's no locking-based read path to leak an uncommitted row through in the first place.</li>
+      <li><b>MySQL/InnoDB defaults to REPEATABLE READ</b>, not READ COMMITTED — a genuine divergence from Postgres that trips up engineers who assume "the database" behaves one way. InnoDB also closes most of the phantom-read gap at that level using next-key locking, which is stronger than the SQL-92 standard actually requires for REPEATABLE READ.</li>
+      <li><b>SQL Server defaults to READ COMMITTED using classic two-phase locking</b>, not MVCC, unless <code>READ_COMMITTED_SNAPSHOT</code> is turned on. That's why "my SELECT is just hanging" is a common SQL Server production ticket and a rare Postgres one — a reader can genuinely be blocked behind a writer's row lock.</li>
+      <li><b>Oracle only exposes READ COMMITTED and SERIALIZABLE</b> — no READ UNCOMMITTED, no true REPEATABLE READ — and it's MVCC-based like Postgres. Knowing a database's actual supported set, not just the SQL-92 list, is exactly the kind of detail that separates "read the docs once" from "used it for years."</li>
+      <li><b>The query planner's cost estimates come from table statistics</b> — Postgres's <code>pg_stats</code>, populated by <code>ANALYZE</code> (autovacuum runs it automatically, but not instantly after a bulk load). A stale-statistics planner picking a sequential scan over an index it doesn't yet know is selective is one of the most common real "why did this query suddenly get slow" incidents — fixed by running <code>ANALYZE</code>, not by touching application code.</li>
+      <li><b>PgBouncer, SQLAlchemy's <code>QueuePool</code>, Django's <code>CONN_MAX_AGE</code>, and Java's HikariCP</b> all exist for the same reason: a Postgres backend is a full OS process (~10MB+ of RSS), and opening one costs a fork, a TLS handshake, and an auth round trip. PgBouncer's transaction-pooling mode multiplexes thousands of client connections onto a small fixed number of real backend connections specifically to avoid paying that cost per request.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: measure it yourself</h2>
+    <p class="dek">Three real, runnable pieces: the write cost of a B-tree index, the query planner actually switching plans, and what a connection pool is really buying you. Run them locally — SQLite's B-tree and query planner are real production code, not a toy stand-in.</p>
+
+    <div class="label-row">btree_bench.py — write cost of maintaining a B-tree index</div>
+    <pre class="code"><code>import sqlite3, time, random
+
+random.seed(7)
+
+def bench_insert(num_indexes, n=100_000):
+    conn = sqlite3.connect(":memory:")
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE accounts (id INTEGER PRIMARY KEY, email TEXT, "
+                "balance INTEGER, city TEXT, status TEXT)")
+    for col in ["email", "balance", "city"][:num_indexes]:
+        cur.execute(f"CREATE INDEX idx_{col} ON accounts({col})")
+    rows = [(i, f"user{i}@example.com", random.randint(0, 100_000),
+              f"city{i % 500}", "active") for i in range(n)]
+    t0 = time.perf_counter()
+    cur.executemany("INSERT INTO accounts VALUES (?,?,?,?,?)", rows)
+    conn.commit()
+    return time.perf_counter() - t0
+
+no_idx    = bench_insert(0)
+one_idx   = bench_insert(1)
+three_idx = bench_insert(3)
+print(f"no secondary index          : {no_idx:.3f}s")
+print(f"1 secondary B-tree index    : {one_idx:.3f}s   (+{(one_idx/no_idx-1)*100:.1f}%)")
+print(f"3 secondary B-tree indexes  : {three_idx:.3f}s   (+{(three_idx/no_idx-1)*100:.1f}%)")</code></pre>
+
+    <div class="label-row">output (this machine, CPython 3.10.12, SQLite 3.37.2)</div>
+    <pre class="output"><code>no secondary index          : 0.078s
+1 secondary B-tree index    : 0.132s   (+69.5%)
+3 secondary B-tree indexes  : 0.254s   (+226.1%)</code></pre>
+
+    <p class="tight">Same 100,000 rows, same data — the only variable is how many B-trees have to be kept sorted alongside the table. Cost scales roughly linearly with index count, which is exactly what the split-and-propagate diagram above predicts: each index is an independent structure paying its own page-split cost on every insert.</p>
+
+    <div class="label-row">planner_literacy.py — reading EXPLAIN QUERY PLAN</div>
+    <pre class="code"><code>import sqlite3, time, random
+
+random.seed(7)
+conn = sqlite3.connect(":memory:")
+cur = conn.cursor()
+cur.execute("CREATE TABLE accounts (id INTEGER PRIMARY KEY, email TEXT, balance INTEGER)")
+rows = [(i, f"user{i}@example.com", random.randint(0, 100_000)) for i in range(100_000)]
+cur.executemany("INSERT INTO accounts VALUES (?,?,?)", rows)
+conn.commit()
+
+print("-- no index on email --")
+for row in cur.execute(
+    "EXPLAIN QUERY PLAN SELECT * FROM accounts WHERE email = 'user42042@example.com'"):
+    print(row)
+
+t0 = time.perf_counter()
+cur.execute("SELECT * FROM accounts WHERE email = 'user42042@example.com'").fetchall()
+scan_ms = (time.perf_counter() - t0) * 1000
+
+cur.execute("CREATE INDEX idx_email ON accounts(email)")
+
+print("-- after CREATE INDEX idx_email ON accounts(email) --")
+for row in cur.execute(
+    "EXPLAIN QUERY PLAN SELECT * FROM accounts WHERE email = 'user42042@example.com'"):
+    print(row)
+
+t0 = time.perf_counter()
+cur.execute("SELECT * FROM accounts WHERE email = 'user42042@example.com'").fetchall()
+index_ms = (time.perf_counter() - t0) * 1000
+
+print(f"\npoint lookup, full scan : {scan_ms:.3f} ms")
+print(f"point lookup, w/ index  : {index_ms:.3f} ms")
+print(f"speedup                 : {scan_ms/index_ms:.0f}x")</code></pre>
+
+    <div class="label-row">output (this machine, CPython 3.10.12, SQLite 3.37.2 — single-shot wall-clock timing, so the exact ms and speedup will vary run to run)</div>
+    <pre class="output"><code>-- no index on email --
+(2, 0, 0, 'SCAN accounts')
+-- after CREATE INDEX idx_email ON accounts(email) --
+(3, 0, 0, 'SEARCH accounts USING INDEX idx_email (email=?)')
+
+point lookup, full scan : 2.461 ms
+point lookup, w/ index  : 0.014 ms
+speedup                 : 171x</code></pre>
+
+    <p class="tight">The planner didn't need to be told anything — it saw a usable index for an equality predicate and switched from <code>SCAN</code> (walk every row) to <code>SEARCH ... USING INDEX</code> (descend the B-tree, ~4 page reads instead of ~100,000 row comparisons) the instant the index existed. Reading a real Postgres plan works the same way, just with richer output:</p>
+
+    <div class="label-row">illustrative example output — EXPLAIN ANALYZE on PostgreSQL, not measured in this environment (no Postgres server here)</div>
+    <pre class="output"><code>Index Scan using idx_email on accounts  (cost=0.42..8.44 rows=1 width=37)
+                                         (actual time=0.031..0.033 rows=1 loops=1)
+  Index Cond: (email = 'user42042@example.com'::text)
+Planning Time: 0.112 ms
+Execution Time: 0.058 ms</code></pre>
+    <p class="tight"><code>cost=startup..total</code> is the planner's internal cost estimate (arbitrary units, not milliseconds) used to compare candidate plans <em>before</em> running anything; <code>rows=</code> and <code>width=</code> are its row-count and row-size estimates. <code>actual time=</code>, <code>rows=</code> and <code>loops=</code> only appear under <code>ANALYZE</code>, because that means the query really ran — <code>loops</code> matters most inside a nested-loop join, where a node can execute hundreds of times per outer row. A plan whose estimated <code>rows</code> is wildly off from its actual <code>rows</code> is the single most common signal of stale table statistics.</p>
+
+    <p class="tight"><b>The exercise</b> — predict before you run it: the table below has exactly one index, on <code>email</code>. Given a query that filters on <b>both</b> <code>email</code> and <code>balance</code>, and only one of those columns is indexed, does the planner use <code>idx_email</code> at all?</p>
+    <pre class="code"><code>for row in cur.execute(
+    "EXPLAIN QUERY PLAN SELECT * FROM accounts "
+    "WHERE email = 'user1@example.com' AND balance &gt; 50000"
+):
+    print(row)</code></pre>
+    <pre class="output"><code>(3, 0, 0, 'SEARCH accounts USING INDEX idx_email (email=?)')</code></pre>
+    <p class="tight">Yes — the planner uses <code>idx_email</code> to jump straight to the matching row(s) on the equality predicate, then applies <code>balance &gt; 50000</code> as a residual filter on whatever comes back. An index doesn't need to cover every predicate in a query to be useful; it only needs to cover enough of the predicate to eliminate most of the rows before the rest gets checked row-by-row.</p>
+
+    <div class="label-row">pool.py — what a connection pool is actually buying you</div>
+    <pre class="code"><code>import queue, sqlite3, time
+
+class ConnectionPool:
+    """A real pool: a bounded queue of pre-opened connections."""
+    def __init__(self, size, factory):
+        self._q = queue.Queue(maxsize=size)
+        for _ in range(size):
+            self._q.put(factory())
+
+    def acquire(self, timeout=None):
+        return self._q.get(timeout=timeout)   # blocks here if the pool is empty
+
+    def release(self, conn):
+        self._q.put(conn)
+
+SIMULATED_CONNECT_COST = 0.004   # 4ms stand-in for TCP + TLS + auth on a real network DB
+
+def open_new_connection():
+    time.sleep(SIMULATED_CONNECT_COST)   # simulated handshake -- not a real network call
+    return sqlite3.connect(":memory:")
+
+def bench_no_pool(n=200):
+    t0 = time.perf_counter()
+    for _ in range(n):
+        conn = open_new_connection()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+    return time.perf_counter() - t0
+
+def bench_with_pool(n=200, pool_size=10):
+    pool = ConnectionPool(pool_size, open_new_connection)
+    t0 = time.perf_counter()
+    for _ in range(n):
+        conn = pool.acquire()
+        conn.execute("SELECT 1").fetchone()
+        pool.release(conn)
+    return time.perf_counter() - t0
+
+no_pool, with_pool = bench_no_pool(), bench_with_pool()
+print(f"open a new connection per request : {no_pool:.3f}s  ({no_pool/200*1000:.2f} ms/req)")
+print(f"checkout from a warm pool of 10   : {with_pool:.3f}s  ({with_pool/200*1000:.3f} ms/req)")
+print(f"speedup                            : {no_pool/with_pool:.1f}x")</code></pre>
+
+    <div class="label-row">output (this machine — the pooling logic and the speedup ratio are real; the 4ms connect cost is a deliberate stand-in for a real network handshake, not a measurement of any actual database)</div>
+    <pre class="output"><code>open a new connection per request : 0.836s  (4.18 ms/req)
+checkout from a warm pool of 10   : 0.002s  (0.010 ms/req)
+speedup                            : 433.5x</code></pre>
+
+    <p class="tight">The pool itself is nothing exotic — a bounded queue holding pre-opened connections, with <code>acquire()</code> blocking (not failing) when it's empty. That block-instead-of-fail behavior is the whole design: a burst of traffic makes requests wait briefly for a free connection rather than each one paying full connection-setup cost, or the database refusing new connections outright because it hit <code>max_connections</code>. The 4ms figure here is a stand-in; published numbers for a cold PostgreSQL connection (process fork + TLS + auth) commonly run single-digit-to-tens of milliseconds, which is exactly the order of magnitude HikariCP's and PgBouncer's own documentation cite as the reason to pool at all.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "I just use whatever isolation level the ORM defaults to — I've never had a problem." <b>Strong:</b> "Django and SQLAlchemy don't set an isolation level; they inherit the database's default — READ COMMITTED for Postgres and SQL Server, REPEATABLE READ for MySQL/InnoDB. That's fine for isolated single-row writes. The moment I have a read-then-write invariant — check inventory, then decrement it — READ COMMITTED isn't enough, because another transaction can commit in the gap between my read and my write. I'd reach for one atomic statement (<code>UPDATE inventory SET stock = stock - 1 WHERE sku = ? AND stock &gt; 0</code>) or a <code>SELECT ... FOR UPDATE</code> row lock before I'd reach for SERIALIZABLE by default — but I know SERIALIZABLE is the fallback when the invariant can't be expressed as one statement."</li>
+        <li>The killer follow-up: <b>"If you do escalate that transaction to SERIALIZABLE, what changes about how your application code has to behave that didn't matter at READ COMMITTED?"</b> The answer they want: a SERIALIZABLE transaction can fail at COMMIT time with a serialization error even though every individual statement inside it succeeded — purely because the database detected a conflict with a concurrent transaction. Code that works perfectly at READ COMMITTED will silently drop transactions or crash in production at SERIALIZABLE unless it's written with a catch-and-retry loop around the whole transaction.</li>
+        <li>A second-tier follow-up worth having ready: "Why can adding an index make an UPDATE-heavy table slower, even though every query looks faster in EXPLAIN?" Because EXPLAIN only prices the read side. Every index is a second B-tree that every write to an indexed column has to keep sorted — a cost that's invisible in a SELECT's query plan and only shows up in write latency and I/O.</li>
+        <li>Know the pooling number, not just the concept: a cold connection means a process fork plus a TLS handshake plus an auth round trip — commonly single-digit-to-tens of milliseconds on a real network database. A pool checkout is a lock acquire on an already-open connection, measured in microseconds. At a few hundred requests per second, "open a fresh connection per request" isn't a rounding error — it can be most of your latency budget.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Your checkout flow runs, inside one transaction, at the database's default READ COMMITTED isolation level: <code>SELECT stock FROM inventory WHERE sku = ?</code> reads a stock count of 1 into Python, the application checks <code>stock &gt; 0</code>, then runs <code>UPDATE inventory SET stock = stock - 1 WHERE sku = ?</code>. Under load, two concurrent checkout requests for the last unit both pass the Python check and both run the UPDATE — stock goes to -1.</p>
+      <p class="tight"><b>This isn't quite a dirty read, a non-repeatable read, or a phantom read — it lives in the same gap those anomalies live in. What is this anomaly actually called, why does READ COMMITTED (and, in most engines, even REPEATABLE READ) not save you here, and what are two structurally different fixes — one that changes the isolation level, and one that doesn't touch isolation at all?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Carried over from Lesson 03 — FastAPI &amp; Django Internals</h3>
+      <p class="tight">Lesson 03 traced what happens between a request hitting the ASGI/WSGI server and your view function running — middleware, dependency injection, the sync/async boundary. Today's mechanisms slot directly into that lifecycle: a FastAPI dependency that does <code>db = SessionLocal()</code>, or Django's per-request connection wrapped in <code>atomic()</code> when <code>ATOMIC_REQUESTS=True</code>, is exactly the moment a connection gets checked out of the pool covered above — and the transaction it opens is exactly what an isolation level governs. A request that "hangs" under load is very often not your view logic at all; it's a request stuck waiting for a pooled connection, or a transaction stuck waiting for a lock — both invisible from inside the handler code Lesson 03 walked through.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="04-rest-graphql-api-design.html"><span class="pnl">&larr; previous</span>REST &amp; GraphQL API Design</a><a class="pn-next" href="06-redis-caching-patterns.html"><span class="pnl">next &rarr;</span>Redis Caching Patterns</a></nav>
+<footer class="page">measured on CPython 3.10.12 · SQLite 3.37.2 · 12 cores · lesson 05 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const S = { running:'state-running', open:'state-io', blocked:'state-blocked', idle:'state-idle' };
+
+  function preventedFor(anomaly, level){
+    if(anomaly === 'dirty') return level !== 'ru';
+    if(anomaly === 'nonrepeatable') return level === 'rr' || level === 'ser';
+    return level === 'ser'; // phantom
+  }
+
+  function dirtySegs(prevented, mvcc){
+    const laneA = [
+      {start:0, end:16, state:S.running},
+      {start:16, end:56, state:S.open},
+      {start:56, end:64, state:S.running},
+      {start:64, end:100, state:S.idle},
+    ];
+    let laneB;
+    if(!prevented || mvcc){
+      laneB = [
+        {start:0, end:26, state:S.idle},
+        {start:26, end:42, state:S.running},
+        {start:42, end:100, state:S.idle},
+      ];
+    } else {
+      laneB = [
+        {start:0, end:26, state:S.idle},
+        {start:26, end:60, state:S.blocked},
+        {start:60, end:72, state:S.running},
+        {start:72, end:100, state:S.idle},
+      ];
+    }
+    return {laneA, laneB};
+  }
+
+  function rangeSegs(){
+    const laneA = [
+      {start:0, end:14, state:S.running},
+      {start:14, end:56, state:S.open},
+      {start:56, end:70, state:S.running},
+      {start:70, end:100, state:S.idle},
+    ];
+    const laneB = [
+      {start:0, end:28, state:S.idle},
+      {start:28, end:46, state:S.running},
+      {start:46, end:100, state:S.idle},
+    ];
+    return {laneA, laneB};
+  }
+
+  const SQL_SCRIPTS = {
+    dirty:
+`-- Txn A                                    -- Txn B
+BEGIN;
+UPDATE accounts SET balance = balance - 100
+  WHERE id = 1;                              -- not yet committed
+                                              SELECT balance FROM accounts WHERE id = 1;
+ROLLBACK;                                    -- A's update never happened`,
+    nonrepeatable:
+`-- Txn A                                    -- Txn B
+BEGIN;
+SELECT balance FROM accounts WHERE id = 1;   -- reads 500
+                                              UPDATE accounts SET balance = 400
+                                                WHERE id = 1;
+                                              COMMIT;
+SELECT balance FROM accounts WHERE id = 1;   -- same txn, second read`,
+    phantom:
+`-- Txn A                                    -- Txn B
+BEGIN;
+SELECT count(*) FROM orders
+  WHERE status = 'pending';                  -- reads 5
+                                              INSERT INTO orders(status)
+                                                VALUES ('pending');
+                                              COMMIT;
+SELECT count(*) FROM orders
+  WHERE status = 'pending';                  -- same txn, second read`,
+  };
+
+  const RESOURCE_TEXT = {
+    ru:  "no visibility barrier — any transaction may read others' uncommitted writes",
+    rc:  "commit-time visibility barrier — every statement re-checks what is currently committed",
+    rr:  "snapshot fixed at first read (or held read locks) for the whole transaction",
+    ser: "full serial equivalence — predicate/range locks or conflict-abort on commit",
+  };
+
+  function captionFor(anomaly, level, prevented, mvcc){
+    if(anomaly === 'dirty'){
+      if(!prevented){
+        return "READ UNCOMMITTED sets no visibility barrier at all. Txn B's SELECT reads A's in-flight, uncommitted UPDATE straight out of the buffer pool. When A rolls back, B has already acted on a balance that, transactionally speaking, never existed.";
+      }
+      if(mvcc){
+        return "This MVCC engine (Postgres, MySQL/InnoDB) doesn't block B at all — B's SELECT is served the last committed row version instantly, without ever touching A's uncommitted write. Same guarantee as a lock-based engine, opposite mechanism: no waiting.";
+      }
+      return "This lock-based engine (SQL Server's default) makes B's SELECT physically wait — blocked behind A's exclusive row lock — until A finishes. B is only unblocked once there is nothing uncommitted left to accidentally read.";
+    }
+    if(anomaly === 'nonrepeatable'){
+      if(!prevented){
+        return "READ COMMITTED re-checks visibility on every statement, not once per transaction. A's first read sees 500; B commits 400 in between; A's second read — same transaction — sees 400. Nothing errored. The row just answered differently twice.";
+      }
+      return "REPEATABLE READ fixes A's view of the database at the moment of its first read — a consistent snapshot in MVCC engines, or a held shared lock in two-phase-locking engines. B's commit is invisible to A until A's own transaction ends. Both reads return 500.";
+    }
+    // phantom
+    if(!prevented){
+      if(level === 'rr'){
+        return "Even REPEATABLE READ, in the strict SQL-92 sense, only guarantees the rows it has already read. Nothing is locked or versioned for rows that don't exist yet, so B's INSERT slips in unguarded and A's second identical query counts 6, not 5.";
+      }
+      return "This isolation level only defines visibility for rows already read. It does nothing about a new row a concurrent INSERT adds mid-transaction, so B's row slips in and A's second identical query counts 6, not 5.";
+    }
+    return "SERIALIZABLE closes the gap. A lock-based engine takes a predicate/gap lock on status='pending' that covers rows that don't exist yet, blocking B's INSERT until A commits. Postgres instead uses SSI — it lets B's INSERT through, then detects the read-write conflict and aborts one of the two transactions at commit time. Either way, A's two range reads are guaranteed identical.";
+  }
+
+  function verdictFor(anomaly, prevented){
+    const map = {
+      dirty: ["ANOMALY OCCURS — Txn B reads Txn A's uncommitted write, which is then rolled back", "PREVENTED — Txn B never observes Txn A's uncommitted write"],
+      nonrepeatable: ["ANOMALY OCCURS — Txn A's second read returns a different value than its first", "PREVENTED — Txn A's two reads return the identical value"],
+      phantom: ["ANOMALY OCCURS — Txn A's second range read returns rows the first read didn't see", "PREVENTED — Txn A's two range reads return the identical row set"],
+    };
+    return prevented ? map[anomaly][1] : map[anomaly][0];
+  }
+
+  let state = { anomaly:'dirty', level:'ru', mvcc:false };
+  let playing = false;
+  let rafId = null;
+  let startTs = null;
+  const DURATION = 4200;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const lanesEl = document.getElementById('lanes');
+  const playheadEl = document.getElementById('playhead');
+  const playBtn = document.getElementById('playBtn');
+  const resourceEl = document.getElementById('resourceReadout');
+  const captionEl = document.getElementById('consoleCaption');
+  const verdictEl = document.getElementById('verdictLine');
+  const sqlEl = document.getElementById('sqlScript');
+  const mvccRow = document.getElementById('mvccToggleRow');
+  const mvccToggle = document.getElementById('mvccToggle');
+
+  function computeSegs(){
+    if(state.anomaly === 'dirty') return dirtySegs(preventedFor('dirty', state.level), state.mvcc);
+    return rangeSegs();
+  }
+
+  function render(){
+    const prevented = preventedFor(state.anomaly, state.level);
+    const segs = computeSegs();
+    const lanes = [ {label:'Txn A', segs:segs.laneA}, {label:'Txn B', segs:segs.laneB} ];
+
+    lanesEl.innerHTML = '';
+    lanes.forEach(l => {
+      const lane = document.createElement('div');
+      lane.className = 'lane';
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = l.label;
+      const track = document.createElement('div');
+      track.className = 'lane-track';
+      l.segs.forEach(seg => {
+        const d = document.createElement('div');
+        d.className = 'seg ' + seg.state;
+        d.style.left = seg.start + '%';
+        d.style.width = (seg.end - seg.start) + '%';
+        d.dataset.start = seg.start;
+        d.dataset.end = seg.end;
+        d.dataset.state = seg.state;
+        track.appendChild(d);
+      });
+      lane.appendChild(label);
+      lane.appendChild(track);
+      lanesEl.appendChild(lane);
+    });
+
+    mvccRow.classList.toggle('hidden', !(state.anomaly === 'dirty' && state.level !== 'ru'));
+    resourceEl.textContent = RESOURCE_TEXT[state.level];
+    sqlEl.textContent = SQL_SCRIPTS[state.anomaly];
+    captionEl.textContent = captionFor(state.anomaly, state.level, prevented, state.mvcc);
+    verdictEl.textContent = verdictFor(state.anomaly, prevented);
+    verdictEl.style.color = prevented ? 'var(--teal)' : 'var(--coral)';
+
+    setPlayheadPercent(0);
+    playBtn.textContent = '▶ Play';
+    playing = false;
+    if(rafId) cancelAnimationFrame(rafId);
+
+    if(reduceMotion){
+      lanesEl.querySelectorAll('.seg').forEach(s => s.style.opacity = 1);
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function setPlayheadPercent(pct){
+    playheadEl.style.left = pct + '%';
+    playheadEl.dataset.t = 't=' + Math.round(pct);
+    lanesEl.querySelectorAll('.seg').forEach(seg=>{
+      const s = parseFloat(seg.dataset.start), e = parseFloat(seg.dataset.end);
+      seg.classList.toggle('active', pct >= s && pct < e && pct < 100);
+    });
+  }
+
+  function tick(ts){
+    if(startTs === null) startTs = ts;
+    const elapsed = ts - startTs;
+    const pct = Math.min(100, (elapsed / DURATION) * 100);
+    setPlayheadPercent(pct);
+    if(pct < 100){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      playing = false;
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function play(){
+    if(reduceMotion){
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+    startTs = null;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if(playing) return;
+    play();
+  });
+
+  document.querySelectorAll('[data-anomaly]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-anomaly]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.anomaly = btn.dataset.anomaly;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-level]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-level]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.level = btn.dataset.level;
+      render();
+    });
+  });
+  mvccToggle.addEventListener('change', () => {
+    state.mvcc = mvccToggle.checked;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

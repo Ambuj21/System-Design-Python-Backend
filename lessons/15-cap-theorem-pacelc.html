@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 15 — CAP Theorem &amp; PACELC</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+
+  /* ---------- lesson 15 additions: CAP/PACELC cluster console ---------- */
+  /* built entirely from the tokens above — no new custom properties, no new palette */
+  .cluster-stage{ margin:0; }
+  .cluster-stage svg{ width:100%; height:auto; display:block; }
+
+  .node-rect{
+    fill: var(--surface-2);
+    stroke: currentColor;
+    stroke-opacity:0.35;
+    stroke-width:1.5;
+    transition:fill .25s ease, stroke .25s ease, stroke-opacity .25s ease;
+  }
+  .node-rect.receiving{ fill:var(--amber-soft); stroke:var(--amber); stroke-opacity:1; stroke-width:2; }
+  .node-rect.accepted{ fill:var(--amber-soft); stroke:var(--amber); stroke-opacity:1; stroke-width:2; }
+  .node-rect.rejected{ fill:var(--coral-soft); stroke:var(--coral); stroke-opacity:1; stroke-width:2; }
+  .node-rect.synced{ fill:var(--teal-soft); stroke:var(--teal); stroke-opacity:0.85; stroke-width:1.5; }
+  .node-rect.stale{ fill:var(--grey-soft); stroke:var(--grey); stroke-opacity:0.9; stroke-width:1.5; }
+
+  .link-line{
+    stroke:currentColor;
+    stroke-opacity:0.3;
+    stroke-width:1.5;
+    transition:stroke .2s ease, stroke-opacity .2s ease;
+  }
+  .link-line.cut{ stroke:var(--coral); stroke-opacity:0.9; stroke-dasharray:5 4; }
+  .link-line.active{ stroke:var(--amber); stroke-opacity:1; stroke-width:2; }
+
+  .cut-mark{ opacity:0; transition:opacity .2s ease; }
+  .cut-mark.show{ opacity:1; }
+
+  .pulse-ring{
+    fill:none;
+    stroke:var(--amber);
+    stroke-width:2;
+    opacity:0;
+    transform-box:fill-box;
+    transform-origin:center;
+  }
+  .pulse-ring.go{ animation:capPulse .6s ease-out; }
+  @keyframes capPulse{
+    0%{ transform:scale(0.3); opacity:0.9; }
+    100%{ transform:scale(2.4); opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pulse-ring.go{ animation:none !important; }
+    .node-rect{ transition:none !important; }
+  }
+
+  .outcome-banner{
+    margin-top:16px;
+    padding:13px 16px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--grey));
+    background:var(--surface-2);
+    font-size:0.86rem;
+    color:var(--text);
+    max-width:none;
+  }
+  .outcome-banner.pending{ color:var(--text-faint); font-style:italic; }
+  .outcome-banner.tone-amber{ --accent-c: var(--amber); }
+  .outcome-banner.tone-coral{ --accent-c: var(--coral); }
+  .outcome-banner.tone-teal{ --accent-c: var(--teal); }
+
+  .class-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:12px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+  }
+  .class-badge{
+    font-family:var(--font-mono);
+    font-weight:700;
+    font-size:0.95rem;
+    padding:6px 14px;
+    border-radius:7px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    flex:none;
+  }
+  .class-example{
+    font-size:0.83rem;
+    color:var(--text-dim);
+    margin:0;
+    max-width:none;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="14-database-scaling-replication-sharding.html"><span class="pnl">&larr; previous</span>Database Scaling: Replication &amp; Sharding</a><a class="pn-next" href="16-consistency-models.html"><span class="pnl">next &rarr;</span>Consistency Models</a></nav>
+
+  <p class="kicker">System design fundamentals · Phase 2 · Lesson 15</p>
+  <h1>CAP Theorem &amp; PACELC</h1>
+  <p class="lede">Why "pick two of three" is the answer that fails a staff interview, which real systems actually lean AP vs CP and why, and the latency-vs-consistency trade you're quietly making on <em>every single write</em> — partition or no partition at all.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why this is an interview trap</h2>
+    <p>Ask a mid-level engineer to state the CAP theorem and you'll usually get: <em>"you can only have two of Consistency, Availability, and Partition tolerance, so you have to pick."</em> That sentence is popular enough to sound authoritative and imprecise enough to fail a staff-level bar the moment someone pushes on it.</p>
+    <p class="tight">Here's the push: Partition tolerance isn't a feature you opt into. If your system runs on more than one machine and those machines talk over a real network — the public internet, a cross-AZ link, a switch that will eventually fail — <b>partitions will happen</b>. You don't get to design them away; TCP/IP doesn't offer that knob. So "pick two of three" is really only ever a live decision between <b>C</b> and <b>A</b>, and only during the specific window a partition is actually occurring. Outside that window, on a healthy network, a well-built system delivers both. Eric Brewer, who first stated this as a conjecture at PODC 2000, said exactly this himself in a 2012 follow-up paper, <em>"CAP Twelve Years Later"</em> — the popular framing oversimplified his own point.</p>
+    <p class="tight">The second miss, just as common: CAP's <b>C</b> is a very specific, strong guarantee — <b>linearizability</b> — not the "C" in ACID. ACID consistency is about application invariants (foreign keys, uniqueness, your account balance never going negative). CAP consistency is about whether every client, everywhere, sees operations in the same real-time order, as if there were only one copy of the data. Conflating the two is the single fastest way to sound like you're pattern-matching a buzzword instead of reasoning about a mechanism.</p>
+        <p class="tight">And the deepest miss of all: CAP is <em>silent</em> about the 99.99% of the time your system is <em>not</em> partitioned. It has nothing to say about the everyday latency-vs-consistency knob that replication forces on you regardless. That gap is exactly what <b>PACELC</b> — a 2010 refinement from Daniel Abadi — was built to close, and it's the part of this lesson most engineers have never even heard of.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> Two branches, one dead phone line</h2>
+    <p class="dek">Two bank branches share a ledger by phone. The line goes down mid-afternoon. A customer walks into Branch A and asks to withdraw $50. Branch A has to decide, right now, with no way to ask Branch B whether it's safe.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 250" role="img" aria-label="Node A and Node B, each holding a balance of five hundred dollars, connected by a link shown broken with a red X. A client arrives at Node A asking to withdraw fifty dollars. From Node A two arrows diverge to two outcome boxes: a coral box labeled CP, refuse the withdrawal and wait for the peer, and an amber box labeled AP, approve locally and reconcile later.">
+        <rect x="40" y="30" width="190" height="72" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5"/>
+        <text x="135" y="22" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="currentColor" fill-opacity="0.7">NODE A</text>
+        <text x="135" y="60" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">balance:</text>
+        <text x="135" y="78" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" font-weight="700" fill="currentColor">$500</text>
+
+        <rect x="410" y="30" width="190" height="72" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5"/>
+        <text x="505" y="22" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="currentColor" fill-opacity="0.7">NODE B</text>
+        <text x="505" y="60" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">balance:</text>
+        <text x="505" y="78" text-anchor="middle" font-family="ui-monospace, monospace" font-size="13" font-weight="700" fill="currentColor">$500</text>
+
+        <line x1="230" y1="66" x2="410" y2="66" stroke="#b3392e" stroke-width="2" stroke-dasharray="5 4" opacity="0.85"/>
+        <text x="320" y="50" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" font-weight="700" fill="#b3392e">REPLICATION LINK — DOWN</text>
+        <g stroke="#b3392e" stroke-width="2.6" stroke-linecap="round">
+          <line x1="312" y1="59" x2="328" y2="73"/>
+          <line x1="312" y1="73" x2="328" y2="59"/>
+        </g>
+
+        <g transform="translate(115,140)">
+          <rect x="0" y="0" width="90" height="26" rx="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.5"/>
+          <text x="45" y="17" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="currentColor">CLIENT</text>
+        </g>
+        <text x="160" y="132" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.65">withdraw $50</text>
+        <path d="M160,140 L160,104" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <path d="M155,111 L160,102 L165,111 Z" fill="currentColor"/>
+
+        <path d="M135,102 L90,178" stroke="#b3392e" stroke-width="1.5" fill="none" opacity="0.8"/>
+        <path d="M135,102 L215,178" stroke="#a1620d" stroke-width="1.5" fill="none" opacity="0.8"/>
+
+        <rect x="10" y="178" width="180" height="56" rx="8" fill="#f3dcda" stroke="#b3392e" stroke-width="1.5"/>
+        <text x="100" y="200" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="#b3392e">CP: refuse withdrawal</text>
+        <text x="100" y="217" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="#b3392e">no path to confirm with B</text>
+
+        <rect x="200" y="178" width="180" height="56" rx="8" fill="#f2e3cc" stroke="#a1620d" stroke-width="1.5"/>
+        <text x="290" y="200" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="#a1620d">AP: approve locally</text>
+        <text x="290" y="217" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="#a1620d">reconcile once healed</text>
+      </svg>
+      <figcaption>Same failure, same node, two equally valid engineering answers. Refuse and Branch A's ledger stays provably correct, but a real customer with real money in the bank walks away with nothing. Approve and the customer is served, but if Branch B independently approves a $480 withdrawal on the same account during the same outage, the combined ledger is now wrong by $30 — a conflict nobody can prevent until the line comes back and someone (a timestamp, a vector clock, a human) decides which write wins.</figcaption>
+    </figure>
+    <p class="tight">Notice what's <em>not</em> in dispute here: both branches agree on what "correct" means. The disagreement is entirely about what to do the instant they can no longer verify it together. That's the whole theorem in one scene.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Send a write, watch the cluster decide</h2>
+    <p class="dek">Three replicas: N1 and N2 can always reach each other. Every write in this walkthrough is routed to N3 — toggle the network state and the priority axis below, then press <b>Send write</b> and watch what N3 does, and what happens to N1/N2 afterward.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Network state">
+          <button data-network="partition" aria-pressed="true">Partition (N2↔N3 link down)</button>
+          <button data-network="healthy" aria-pressed="false">Healthy network</button>
+        </div>
+        <span class="stat-line">illustrative round trips: same-AZ often ~1&ndash;2ms &middot; cross-region often 30&ndash;150ms</span>
+      </div>
+
+      <div class="controls-row">
+        <div class="tabgroup" role="group" aria-label="Priority axis" id="priorityGroup">
+          <button data-priority="fast" aria-pressed="true">PA &mdash; favor availability</button>
+          <button data-priority="safe" aria-pressed="false">PC &mdash; favor consistency</button>
+        </div>
+        <button class="playbtn" id="playBtn">&#9654; Send write</button>
+      </div>
+
+      <div class="cluster-stage">
+        <svg viewBox="0 0 640 230" role="img" aria-label="A client above sends a write to replica N3 on the right. N1 and N2 sit to the left and center, linked to each other; the link between N2 and N3 shows a break during a partition. Each node's fill color changes as it receives, accepts, rejects, or falls stale relative to the write.">
+          <line id="link-c-n1" class="link-line" x1="320" y1="38" x2="135" y2="110"/>
+          <line id="link-c-n2" class="link-line" x1="320" y1="38" x2="320" y2="110"/>
+          <line id="link-c-n3" class="link-line" x1="320" y1="38" x2="505" y2="110"/>
+          <line id="link-n1-n2" class="link-line" x1="210" y1="145" x2="245" y2="145"/>
+          <line id="link-n2-n3" class="link-line" x1="395" y1="145" x2="430" y2="145"/>
+
+          <g id="cutmark" class="cut-mark">
+            <line x1="406" y1="139" x2="419" y2="151" stroke="var(--coral)" stroke-width="2.6" stroke-linecap="round"/>
+            <line x1="406" y1="151" x2="419" y2="139" stroke="var(--coral)" stroke-width="2.6" stroke-linecap="round"/>
+          </g>
+          <text id="linkStatusLabel" x="412" y="128" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" font-weight="700" fill="var(--coral)"></text>
+
+          <rect x="270" y="10" width="100" height="28" rx="14" fill="var(--surface-2)" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5"/>
+          <text x="320" y="28" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" fill="currentColor">CLIENT</text>
+
+          <rect id="rectN1" class="node-rect synced" x="60" y="110" width="150" height="70" rx="8"/>
+          <circle id="pulseN1" class="pulse-ring" cx="135" cy="110" r="8"/>
+          <text x="135" y="128" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">N1</text>
+          <text id="valN1" x="135" y="148" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">x = 5</text>
+          <text id="badgeN1" x="135" y="164" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" font-style="italic" fill="currentColor" fill-opacity="0.75"></text>
+
+          <rect id="rectN2" class="node-rect synced" x="245" y="110" width="150" height="70" rx="8"/>
+          <circle id="pulseN2" class="pulse-ring" cx="320" cy="110" r="8"/>
+          <text x="320" y="128" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">N2</text>
+          <text id="valN2" x="320" y="148" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">x = 5</text>
+          <text id="badgeN2" x="320" y="164" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" font-style="italic" fill="currentColor" fill-opacity="0.75"></text>
+
+          <rect id="rectN3" class="node-rect synced" x="430" y="110" width="150" height="70" rx="8"/>
+          <circle id="pulseN3" class="pulse-ring" cx="505" cy="110" r="8"/>
+          <text x="505" y="128" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">N3</text>
+          <text id="valN3" x="505" y="148" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">x = 5</text>
+          <text id="badgeN3" x="505" y="164" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" font-style="italic" fill="currentColor" fill-opacity="0.75"></text>
+
+          <text x="505" y="198" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">every write lands here</text>
+        </svg>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>in sync</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>received / accepted this write</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>rejected &mdash; no quorum</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--grey-soft); border:1px solid var(--border)"></span>stale &mdash; not yet replicated</span>
+      </div>
+
+      <div class="outcome-banner pending" id="outcomeBanner">Press &ldquo;Send write&rdquo; to see what this configuration actually does.</div>
+
+      <div class="class-row">
+        <span class="class-badge" id="classBadge">PA / EL</span>
+        <p class="class-example" id="classExample">Cassandra, DynamoDB, Riak — availability wins during a partition, latency wins when healthy.</p>
+      </div>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">all four quadrants, for reference</div>
+    <p class="dek" style="margin-top:0;">The console above only demonstrates whichever quadrant you've selected. Here's what all four actually mean, side by side.</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>PA / EL</h3>
+        <div class="bench-sub">Cassandra &middot; DynamoDB &middot; Riak (default configs)</div>
+        <p class="tight" style="font-size:0.85rem;">Available under a partition, fast when healthy. The classic "AP" NoSQL default — conflicts get resolved after the fact via last-write-wins, vector clocks, or CRDTs.</p>
+      </div>
+      <div class="bench-card">
+        <h3>PC / EC</h3>
+        <div class="bench-sub">HBase &middot; BigTable &middot; Spanner &middot; RDBMS w/ sync replicas</div>
+        <p class="tight" style="font-size:0.85rem;">Consistency wins both times: refuses writes without a reachable quorum during a partition, and waits for synchronous confirmation from replicas even when the network is perfectly healthy.</p>
+      </div>
+      <div class="bench-card">
+        <h3>PC / EL</h3>
+        <div class="bench-sub">Yahoo PNUTS</div>
+        <p class="tight" style="font-size:0.85rem;">A per-record primary keeps writes conflict-free without a synchronous round-trip, so normal-case latency stays low even though the system is strict (unavailable on conflict) under a partition.</p>
+      </div>
+      <div class="bench-card">
+        <h3>PA / EC</h3>
+        <div class="bench-sub">rare in production</div>
+        <p class="tight" style="font-size:0.85rem;">Would mean paying full synchronous-replication latency on every healthy write, yet still letting the partitioned minority diverge anyway. Hard to justify — few if any major systems default here.</p>
+      </div>
+    </div>
+    <p class="console-note">The interactive cluster above is a schematic model built to make the mechanism visible, not a benchmark of a real cluster — the real, measured numbers are in the hands-on section below.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>DynamoDB, Cassandra, Riak — PA/EL by default.</b> All three let you dial toward consistency per-query (Cassandra's <code>QUORUM</code>/<code>ALL</code> consistency levels, DynamoDB's strongly-consistent reads) at a direct latency cost, but their defaults favor availability and low latency. The mechanism that makes AP survivable in practice: <b>hinted handoff</b> (a coordinator holds writes destined for a down node and replays them once it's back), <b>read repair</b> and <b>Merkle-tree anti-entropy</b> (periodic background comparison of replica state to reconcile silent divergence) and <b>vector clocks / dotted version vectors</b> to detect — not just guess at — which writes actually conflict.</li>
+      <li><b>ZooKeeper, etcd, Consul — CP, on purpose.</b> These exist specifically to be a strongly consistent source of truth for coordination (leader election, config, service discovery), built on Raft or ZAB consensus. No write is accepted without a majority quorum acknowledging it — full stop. Kubernetes uses etcd as its entire cluster state store precisely because "occasionally wrong" is not an acceptable property for the thing that decides which pod is currently the leader.</li>
+      <li><b>Google Spanner — PC/EC, but it cheats (with hardware).</b> Spanner wants external consistency (linearizability across the whole globe) which normally means a slow synchronous consensus round-trip on every commit. Its TrueTime API — GPS and atomic clocks in every datacenter, bounding clock uncertainty to single-digit milliseconds — lets it commit as soon as it can prove no other transaction could have raced it, without an extra network round-trip purely for ordering. It's still paying the EC tax, just a much smaller one than a naive synchronous design would.</li>
+      <li><b>MongoDB — deliberately tunable, not a single point on the map.</b> Write concern (<code>w:1</code> vs <code>w:majority</code>) and read concern/preference let a single cluster behave close to PC/EC for one collection and closer to PA/EL for another. This is the honest answer to "is MongoDB CP or AP" — it depends entirely on the flags the calling code chose, and a strong candidate says so instead of picking a side.</li>
+      <li><b>CDNs and DNS — AP as a design philosophy, not a compromise.</b> TTL-bounded eventual propagation is treated as a fundamental, accepted property of the domain. Nobody expects a DNS record update or a CDN cache purge to be linearizable across the planet, and no one tries to make it so.</li>
+      <li><b>Postgres <code>synchronous_commit=on</code> / MySQL semi-sync replication — PC/EC in a box you already run.</b> The primary's commit blocks until the synchronous standby acknowledges the write, on every single transaction, healthy network or not. That's the EC tax paid explicitly, in exchange for zero data loss on a failover.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: measure the quorum math yourself</h2>
+    <p class="dek">A quorum system with <code>N</code> replicas, write quorum <code>W</code>, and read quorum <code>R</code> guarantees a read always sees the latest write <b>iff</b> <code>W + R &gt; N</code> — the write set and the read set are forced to overlap by at least one replica. That single inequality is the actual mechanism underneath every "tunable consistency" knob in Cassandra, DynamoDB, and Riak, and underneath the CP/PA choice a partition forces. Below: real code, actually run, simulating five replicas with realistic latency and a real network partition.</p>
+
+    <div class="label-row">quorum_sim.py</div>
+    <pre class="code"><code>import threading, time
+
+# 5 replicas modeling a cluster split across two regions:
+#   R0, R1, R2 = local region   (low latency)
+#   R3, R4     = remote region  (high latency) -- this becomes the "minority" side
+LATENCIES_MS = {
+    "R0": 2, "R1": 3, "R2": 4,      # local region
+    "R3": 85, "R4": 95,             # remote region
+}
+
+def replica_ack(name, unreachable, acked, lock, done_event, needed):
+    if name in unreachable:
+        return  # simulates a partitioned-off node: it never responds
+    time.sleep(LATENCIES_MS[name] / 1000)
+    with lock:
+        acked.append(name)
+        if len(acked) >= needed:
+            done_event.set()
+
+def write_with_quorum(w_required, unreachable=(), timeout=0.5):
+    acked = []
+    lock = threading.Lock()
+    done_event = threading.Event()
+    t0 = time.perf_counter()
+    threads = [
+        threading.Thread(target=replica_ack, args=(name, unreachable, acked, lock, done_event, w_required), daemon=True)
+        for name in LATENCIES_MS
+    ]
+    for t in threads:
+        t.start()
+    ok = done_event.wait(timeout)
+    elapsed = time.perf_counter() - t0
+    return ok, elapsed, sorted(acked)
+
+def report(label, w_required, unreachable=()):
+    ok, elapsed, acked = write_with_quorum(w_required, unreachable)
+    status = "ACKED" if ok else "TIMED OUT (unavailable)"
+    print(f"{label:60s} {status:24s} {elapsed*1000:7.1f}ms  acked={acked}")
+
+print("=== healthy cluster, no partition (N=5 replicas) ===")
+report("W=1  (EL: ack after the single fastest replica)", 1)
+report("W=3  (majority quorum ack)", 3)
+report("W=5  (EC: ack after every replica)", 5)
+
+print()
+print("=== partitioned: R3,R4 unreachable -- client on the MAJORITY side ===")
+report("W=1  majority side", 1, unreachable={"R3", "R4"})
+report("W=3  majority side (quorum of 3 fully reachable locally)", 3, unreachable={"R3", "R4"})
+report("W=5  majority side (needs all 5 -> impossible)", 5, unreachable={"R3", "R4"})
+
+print()
+print("=== partitioned: R0,R1,R2 unreachable -- client on the MINORITY side ===")
+report("W=1  minority side", 1, unreachable={"R0", "R1", "R2"})
+report("W=3  minority side (needs 3, only 2 reachable -> unavailable)", 3, unreachable={"R0", "R1", "R2"})</code></pre>
+
+    <div class="label-row">output — python3 quorum_sim.py (this machine, CPython 3.10.12)</div>
+    <pre class="output"><code>=== healthy cluster, no partition (N=5 replicas) ===
+W=1  (EL: ack after the single fastest replica)             ACKED                        2.3ms  acked=['R0']
+W=3  (majority quorum ack)                                  ACKED                        4.2ms  acked=['R0', 'R1', 'R2']
+W=5  (EC: ack after every replica)                          ACKED                       95.4ms  acked=['R0', 'R1', 'R2', 'R3', 'R4']
+
+=== partitioned: R3,R4 unreachable -- client on the MAJORITY side ===
+W=1  majority side                                          ACKED                        2.3ms  acked=['R0']
+W=3  majority side (quorum of 3 fully reachable locally)    ACKED                        4.4ms  acked=['R0', 'R1', 'R2']
+W=5  majority side (needs all 5 -> impossible)              TIMED OUT (unavailable)    500.6ms  acked=['R0', 'R1', 'R2']
+
+=== partitioned: R0,R1,R2 unreachable -- client on the MINORITY side ===
+W=1  minority side                                          ACKED                       86.4ms  acked=['R3']
+W=3  minority side (needs 3, only 2 reachable -> unavailable) TIMED OUT (unavailable)    501.0ms  acked=['R3', 'R4']</code></pre>
+
+    <p class="tight"><b>Read that last block carefully.</b> Same code, same quorum requirement (<code>W=3</code>), same instant in time — one side of the partition acks in 4.4ms, the other side times out completely after half a second. That's CAP made literal: the partition didn't force a single global choice, it forced <em>each side</em> to independently discover whether it still has a majority. The majority side barely notices anything happened. The minority side becomes unavailable for exactly the writes that need a quorum it can't reach — which is <code>W=3</code>'s entire point: it refuses to let a lone, cut-off replica silently drift.</p>
+
+    <p class="tight"><b>The exercise</b> — work it out before you touch the code:</p>
+    <pre class="code"><code># Extend LATENCIES_MS to 7 replicas (R0..R6). You want a quorum
+# configuration where:
+#   (a) reads and writes are guaranteed to overlap (W + R > N), and
+#   (b) the cluster keeps accepting BOTH reads and writes even after
+#       any 3 replicas fail or partition away simultaneously.
+#
+# 1. What's the minimum W (and matching R) that satisfies both
+#    constraints? (Hint: "tolerates f simultaneous failures for writes"
+#    means W <= N - f must still hold.)
+# 2. With that W, R -- run write_with_quorum() marking exactly 3 replicas
+#    unreachable. Does it ACK or TIME OUT? Now mark 4 unreachable --
+#    which constraint breaks first, (a) or (b)?
+# 3. This is the actual math behind "how many AZs / regions do I need"
+#    conversations in a real design interview -- N=5, W=R=3 tolerates 2
+#    simultaneous failures; N=7, W=R=4 tolerates 3. More replicas buys
+#    more fault tolerance at the cost of paying W's latency against a
+#    slower node more often. Where's the point of diminishing returns?</code></pre>
+    <p class="tight">Answer to check yourself against: <code>N=7</code> needs <code>W=4</code> (and <code>R=4</code> to keep <code>W+R=8&gt;7</code>) to guarantee overlap while tolerating <code>f=3</code> simultaneous failures — because <code>W &le; N - f</code> means <code>4 &le; 7-3</code>, exactly on the boundary. Knock out a 4th replica and the write can no longer reach quorum at all: it times out, correctly, rather than committing on a minority that could conflict with an unreachable majority.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "CAP theorem means you can only have two of Consistency, Availability, and Partition tolerance, so most systems pick AP or CP." <b>Strong:</b> "Partition tolerance isn't optional on a real network, so the live decision is C-vs-A, and only during a partition — which for most services is rare, measured in minutes per year. The trade that actually runs on every single write, every day, and directly sets my p99 latency floor is PACELC's else-clause: EL vs EC. I'd ask what the SLA actually requires before defaulting to a global CAP letter, and I'd reach for a system with tunable per-operation consistency rather than a single fixed point on the map."</li>
+        <li>The killer follow-up: <b>"Your service uses Cassandra with QUORUM reads and writes — effectively W+R&gt;N, so CP for that path. A cross-region link drops for 90 seconds. What happens to reads AND writes on the minority side during those 90 seconds, and what has to happen to reconcile state once the link comes back?"</b> The minority side can't reach a quorum locally, so both reads and writes on that path fail fast (or time out) for the duration — it is genuinely unavailable, not just slow. Once healed: hinted handoff on the majority side replays the writes it was holding for the down replicas, and read repair plus Merkle-tree comparison reconcile any values that diverged in the meantime, using timestamps or version vectors to pick a winner.</li>
+        <li>The nuance worth naming unprompted: PACELC isn't a separate theorem bolted onto CAP — it's the same underlying question (favor correctness or favor responsiveness when you can't have both) asked twice: once for the rare case (a partition) and once for the constant case (normal operation). A system's full classification — PA/EL, PC/EC, PC/EL, or the rarely-chosen PA/EC — is genuinely four independent letters, and a candidate who can place a named real system on that grid, with the mechanism behind it, is operating a level above one who can only recite "eventually consistent."</li>
+        <li>Know the actual mechanisms, not just the labels: hinted handoff and read repair (how AP systems survive without silently corrupting data forever), the <code>W+R&gt;N</code> quorum-overlap inequality (why tunable consistency levels work at all), and what "linearizable" precisely means versus the weaker models (sequential, causal, eventual) a system might actually be offering under a friendlier name.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Your team runs a shopping-cart service on a database configured for synchronous replication across two availability zones — a PC/EC setup. Checkout latency p99 has crept from 12ms to 40ms as traffic tripled, and there's pressure to "just switch to async replication."</p>
+      <p class="tight"><b>What exactly changes if you make that switch — for the partition case and for the everyday no-partition case, separately — and what's the one question about the real business cost of a lost or stale cart write you'd insist on getting answered before signing off?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Resurfacing lesson 14 — Database Scaling: Replication &amp; Sharding</h3>
+      <p class="tight">Lesson 14 covered how replication and sharding physically distribute data — leader/follower replication, replication lag, and a keyspace split across shards so no single machine holds all of it. Today's lesson is the theory that explains why that distribution has consequences: the instant you have more than one copy of anything, you've created exactly the conditions CAP and PACELC describe. Replication lag <em>is</em> the stale-read window from the EL case in the console above, spelled out with a different name. A sharded system's per-shard leader election refusing writes without a reachable quorum <em>is</em> the PC mechanism, applied per shard instead of to the whole cluster. If lesson 14 answered "how do we spread data across machines," this lesson answers "and what do we now have to give up, and when, because we did."</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="14-database-scaling-replication-sharding.html"><span class="pnl">&larr; previous</span>Database Scaling: Replication &amp; Sharding</a><a class="pn-next" href="16-consistency-models.html"><span class="pnl">next &rarr;</span>Consistency Models</a></nav>
+<footer class="page">quorum_sim.py output captured on CPython 3.10.12, this machine · interactive cluster console above is a schematic simulation for teaching the mechanism, not a benchmark · lesson 15 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const el = id => document.getElementById(id);
+  const playBtn = el('playBtn');
+  const outcomeBanner = el('outcomeBanner');
+  const classBadge = el('classBadge');
+  const classExample = el('classExample');
+  const linkStatusLabel = el('linkStatusLabel');
+
+  const NODES = ['N1', 'N2', 'N3'];
+  const NODE_STATES = ['synced', 'receiving', 'accepted', 'rejected', 'stale'];
+
+  const state = { network: 'partition', partitionPriority: 'fast', healthyPriority: 'fast' };
+  let timers = [];
+
+  function clearTimers(){
+    timers.forEach(id => clearTimeout(id));
+    timers = [];
+  }
+
+  function setNodeState(node, cls){
+    const rect = el('rect' + node);
+    NODE_STATES.forEach(s => rect.classList.remove(s));
+    rect.classList.add(cls);
+  }
+  function setVal(node, v){ el('val' + node).textContent = 'x = ' + v; }
+  function setBadge(node, text){ el('badge' + node).textContent = text; }
+  function pulseNode(node){
+    if(reduceMotion) return;
+    const ring = el('pulse' + node);
+    ring.classList.remove('go');
+    // force reflow so re-adding the class restarts the keyframe animation
+    // eslint-disable-next-line no-unused-expressions
+    ring.getBoundingClientRect();
+    ring.classList.add('go');
+  }
+  function flashLink(id){ el('link-' + id).classList.add('active'); }
+
+  const BANNERS = {
+    'pa-receiving': { tone: 'amber', text: 'N3 is receiving the write with no path to N1 or N2 right now...' },
+    'pa-final': { tone: 'amber', text: 'N3 accepted the write on its own, cut off from N1/N2. Its copy of x now disagrees with theirs, and nothing reconciles that until the partition heals and something -- last-write-wins, a vector clock, a CRDT merge -- resolves the conflict. This is the Dynamo/Cassandra/Riak choice: PA. Availability wins, and both sides kept writing through the outage.' },
+    'pc-receiving': { tone: 'amber', text: 'N3 is receiving the write, but it cannot reach a quorum with N1/N2 unreachable...' },
+    'pc-final': { tone: 'coral', text: 'N3 refused the write outright -- with N1/N2 unreachable it has no way to confirm a quorum, so it will not risk committing something that might conflict with what the majority side is doing. The client gets an honest error instead of a maybe-wrong answer. This is the etcd/ZooKeeper/HBase choice: PC. Consistency wins, and the minority side simply stops taking writes until it heals.' },
+    'el-ack': { tone: 'amber', text: 'N3 just acked the client after only its own local write -- it has not heard back from N1 or N2 yet. For this window, a read against N1 or N2 would still return the old value.' },
+    'el-final': { tone: 'teal', text: 'That is the EL trade made visible: the client got its ack fast, but there was a real window -- the gap between N3’s local commit and replication landing on N1/N2 -- where a read elsewhere in the cluster returned stale data. No partition was involved; this is Cassandra/DynamoDB/Riak’s normal, every-single-write behavior, not a failure mode.' },
+    'ec-progress': { tone: 'amber', text: 'N3 is holding the ack open, waiting on N2 and then N1 to confirm before it will tell the client the write succeeded...' },
+    'ec-final': { tone: 'teal', text: 'N3 held the ack until N2 and N1 both confirmed too. No stale-read window exists anywhere in the cluster -- but every write now pays for a synchronous round trip to the slowest replica in the chain, every time, partition or not. This is what synchronous multi-AZ replication (or Spanner’s commit-wait) is buying.' },
+  };
+
+  function setBanner(key){
+    const b = BANNERS[key];
+    outcomeBanner.classList.remove('pending', 'tone-amber', 'tone-coral', 'tone-teal');
+    outcomeBanner.classList.add('tone-' + b.tone);
+    outcomeBanner.textContent = b.text;
+  }
+
+  function seqPartitionFast(){
+    return [
+      { t: 0, fn: () => { flashLink('c-n3'); pulseNode('N3'); setNodeState('N3', 'receiving'); setBadge('N3', 'receiving...'); setBanner('pa-receiving'); } },
+      { t: 550, fn: () => { setNodeState('N3', 'accepted'); setVal('N3', 6); setBadge('N3', 'accepted locally (diverged)'); setBanner('pa-final'); } },
+    ];
+  }
+  function seqPartitionSafe(){
+    return [
+      { t: 0, fn: () => { flashLink('c-n3'); pulseNode('N3'); setNodeState('N3', 'receiving'); setBadge('N3', 'receiving...'); setBanner('pc-receiving'); } },
+      { t: 550, fn: () => { setNodeState('N3', 'rejected'); setBadge('N3', 'no quorum -- refused'); setBanner('pc-final'); } },
+    ];
+  }
+  function seqHealthyFast(){
+    return [
+      { t: 0, fn: () => { flashLink('c-n3'); pulseNode('N3'); setNodeState('N3', 'receiving'); setBadge('N3', 'receiving...'); } },
+      { t: 350, fn: () => { setNodeState('N3', 'accepted'); setVal('N3', 6); setBadge('N3', 'acked (local durability)'); setBanner('el-ack'); } },
+      { t: 850, fn: () => { setNodeState('N1', 'stale'); setNodeState('N2', 'stale'); setBadge('N1', 'replicating...'); setBadge('N2', 'replicating...'); } },
+      { t: 1500, fn: () => {
+          setNodeState('N1', 'synced'); setNodeState('N2', 'synced');
+          setVal('N1', 6); setVal('N2', 6);
+          setBadge('N1', ''); setBadge('N2', '');
+          setBanner('el-final');
+        } },
+    ];
+  }
+  function seqHealthySafe(){
+    return [
+      { t: 0, fn: () => { flashLink('c-n3'); pulseNode('N3'); setNodeState('N3', 'receiving'); setBadge('N3', 'proposing...'); setBanner('ec-progress'); } },
+      { t: 400, fn: () => { flashLink('n2-n3'); pulseNode('N2'); setNodeState('N2', 'receiving'); setBadge('N2', 'confirming...'); } },
+      { t: 800, fn: () => { flashLink('n1-n2'); pulseNode('N1'); setNodeState('N1', 'receiving'); setBadge('N1', 'confirming...'); } },
+      { t: 1200, fn: () => {
+          NODES.forEach(n => { setNodeState(n, 'synced'); setVal(n, 6); setBadge(n, ''); });
+          setBanner('ec-final');
+        } },
+    ];
+  }
+
+  function activePriority(){
+    return state.network === 'partition' ? state.partitionPriority : state.healthyPriority;
+  }
+
+  function getSequence(){
+    const p = activePriority();
+    if(state.network === 'partition') return p === 'fast' ? seqPartitionFast() : seqPartitionSafe();
+    return p === 'fast' ? seqHealthyFast() : seqHealthySafe();
+  }
+
+  const CLASS_EXAMPLES = {
+    'PA/EL': 'Cassandra, DynamoDB, Riak — availability wins during a partition, latency wins when healthy.',
+    'PA/EC': 'Rare in production — paying full sync-replication latency when healthy, yet still letting the partitioned minority diverge, is a hard trade to justify.',
+    'PC/EL': 'Yahoo PNUTS — a per-record primary keeps writes conflict-free without a synchronous round-trip, so normal-case latency stays low despite being strict under a partition.',
+    'PC/EC': 'HBase, BigTable, Spanner, and any RDBMS with synchronous replicas — consistency wins both times, partition or not.',
+  };
+
+  function updateClassification(){
+    const code = (state.partitionPriority === 'fast' ? 'PA' : 'PC') + '/' + (state.healthyPriority === 'fast' ? 'EL' : 'EC');
+    classBadge.textContent = code;
+    classExample.textContent = CLASS_EXAMPLES[code];
+  }
+
+  function updatePriorityLabels(){
+    const fastBtn = document.querySelector('[data-priority="fast"]');
+    const safeBtn = document.querySelector('[data-priority="safe"]');
+    const active = activePriority();
+    if(state.network === 'partition'){
+      fastBtn.textContent = 'PA — favor availability';
+      safeBtn.textContent = 'PC — favor consistency';
+    } else {
+      fastBtn.textContent = 'EL — favor latency';
+      safeBtn.textContent = 'EC — favor consistency';
+    }
+    fastBtn.setAttribute('aria-pressed', active === 'fast');
+    safeBtn.setAttribute('aria-pressed', active === 'safe');
+  }
+
+  function resetDiagram(){
+    clearTimers();
+    NODES.forEach(n => { setNodeState(n, 'synced'); setVal(n, 5); setBadge(n, ''); });
+    ['link-c-n1','link-c-n2','link-c-n3','link-n1-n2','link-n2-n3'].forEach(id => el(id).classList.remove('active'));
+
+    const cut = state.network === 'partition';
+    el('link-n2-n3').classList.toggle('cut', cut);
+    el('cutmark').classList.toggle('show', cut);
+    linkStatusLabel.textContent = cut ? 'LINK DOWN' : '';
+
+    outcomeBanner.classList.remove('tone-amber', 'tone-coral', 'tone-teal');
+    outcomeBanner.classList.add('pending');
+    outcomeBanner.textContent = 'Press “Send write” to see what this configuration actually does.';
+
+    playBtn.disabled = false;
+    playBtn.textContent = '▶ Send write';
+
+    updatePriorityLabels();
+    updateClassification();
+  }
+
+  function playScenario(){
+    resetDiagram();
+    outcomeBanner.classList.remove('pending');
+    const seq = getSequence();
+
+    if(reduceMotion){
+      seq.forEach(step => step.fn());
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+
+    playBtn.disabled = true;
+    playBtn.textContent = '⏸ Writing…';
+    const last = seq[seq.length - 1];
+    seq.forEach(step => {
+      const id = setTimeout(() => {
+        step.fn();
+        if(step === last){
+          playBtn.disabled = false;
+          playBtn.textContent = '↻ Replay';
+        }
+      }, step.t);
+      timers.push(id);
+    });
+  }
+
+  playBtn.addEventListener('click', playScenario);
+
+  document.querySelectorAll('[data-network]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-network]').forEach(b => b.setAttribute('aria-pressed', b === btn));
+      state.network = btn.dataset.network;
+      resetDiagram();
+    });
+  });
+
+  document.querySelectorAll('[data-priority]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(state.network === 'partition') state.partitionPriority = btn.dataset.priority;
+      else state.healthyPriority = btn.dataset.priority;
+      resetDiagram();
+    });
+  });
+
+  resetDiagram();
+})();
+</script>
+</body>
+</html>

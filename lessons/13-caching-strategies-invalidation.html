@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 — Caching Strategies &amp; Invalidation at the Architecture Level</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+
+  /* ---------- lesson 13 additions: overload segment + write-event marker ---------- */
+  /* built from the same tokens as everything above -- no new custom properties, no new palette */
+  .seg.state-overload{ background:var(--coral); background-image:repeating-linear-gradient(45deg, var(--amber) 0 4px, var(--coral) 4px 8px); }
+
+  .event-marker{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:0;
+    border-left:2px dashed var(--text-faint);
+    z-index:2;
+    pointer-events:none;
+  }
+  .event-marker::after{
+    content:'write';
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.62rem;
+    color:var(--text-faint);
+    white-space:nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="12-load-balancing.html"><span class="pnl">&larr; previous</span>Load Balancing</a><a class="pn-next" href="14-database-scaling-replication-sharding.html"><span class="pnl">next &rarr;</span>Database Scaling: Replication &amp; Sharding</a></nav>
+
+  <p class="kicker">System design fundamentals · Phase 2 · Lesson 13</p>
+  <h1>Caching Strategies &amp; Invalidation at the Architecture Level</h1>
+  <p class="lede">Multi-layer caching — CDN, edge, application, database — turns "is this data fresh?" into a coordination problem across systems that have no idea the others exist. This is the real mechanism behind TTLs, purges, and versioned keys, why they disagree with each other by design, and how a cache-key mistake turns a performance feature into a data leak.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why this is where interviews go sideways</h2>
+    <p>Ask a mid-level engineer how they'd speed up a slow endpoint and the reflex answer is <em>"add a cache."</em> That instinct is correct and the answer is incomplete — caching is trivial to bolt on and dangerously easy to get wrong, and the part that actually separates levels isn't "do you know Redis exists," it's <b>"what happens the instant the underlying data changes."</b> A cache with no invalidation story isn't a cache. It's a bug with a TTL attached to it.</p>
+    <p class="tight">In any system past toy scale you don't have one cache, you have a <em>stack</em> of them: a browser's HTTP cache, a CDN edge, an application-level cache (Redis, per lesson 06), and the database's own internal buffer pool — each with an independently configured expiry clock that has no idea the other layers exist. The interview trap is treating "cache invalidation" as one problem with one fix. It's a coordination problem across N independently-clocked systems, and the honest answer to "is this data fresh" becomes <b>"fresh according to which layer, measured when."</b></p>
+    <p class="tight">There's a second, sharper trap hiding in the same topic: cache <em>key</em> design. Get the invalidation strategy right but the key wrong — miss one dimension the response actually depends on, like which user is asking — and you don't get stale data, you get one user's private response served to somebody else. That's not a performance bug anyone escalates gently; it's a security incident. Both halves of this lesson — how caches lose track of what's true, and how caches accidentally mix up who's asking — sound like implementation detail and behave like staff-bar topics, because both failure modes are silent until the exact moment they aren't.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> Reads go one way. Writes land somewhere else entirely.</h2>
+    <p class="dek">Every read for the same product travels the same left-to-right path through every layer. A write skips all of it and lands directly at the source of truth — which means invalidation has to travel <em>backward</em>, against the grain of the read path, and it doesn't do it instantly.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 268" role="img" aria-label="Four boxes in a row -- client, CDN edge, app cache, and origin DB -- connected left to right by read-path arrows, each of the three cache boxes carrying its own small clock icon. A write labeled price equals 9.99 dollars lands directly in the origin DB from below, skipping every cache. Dashed coral arrows point backward from DB toward client, labeled invalidation must travel against the read path. Price-tag pills under each box show the moment right after the write: origin DB reads 9.99 dollars, current, in teal, while client, CDN edge and app cache still each read 12.99 dollars, stale, in coral -- three layers simultaneously disagreeing with the source of truth.">
+        <text x="320" y="18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.5">read path &#8594;</text>
+
+        <line x1="140" y1="112" x2="172" y2="112" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.4"/>
+        <path d="M172,112 L165,108 L165,116 Z" fill="currentColor" fill-opacity="0.4"/>
+        <line x1="300" y1="112" x2="332" y2="112" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.4"/>
+        <path d="M332,112 L325,108 L325,116 Z" fill="currentColor" fill-opacity="0.4"/>
+        <line x1="460" y1="112" x2="492" y2="112" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.4"/>
+        <path d="M492,112 L485,108 L485,116 Z" fill="currentColor" fill-opacity="0.4"/>
+
+        <!-- CLIENT -->
+        <rect x="15" y="90" width="125" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="77" y="116" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">CLIENT</text>
+        <text x="77" y="133" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">own TTL, own clock</text>
+        <circle cx="124" cy="106" r="7" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+        <line x1="124" y1="106" x2="124" y2="100" stroke="var(--amber)" stroke-width="1.5"/>
+
+        <!-- CDN EDGE -->
+        <rect x="175" y="90" width="125" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="237" y="116" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">CDN EDGE</text>
+        <text x="237" y="133" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">own TTL, own clock</text>
+        <circle cx="284" cy="106" r="7" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+        <line x1="284" y1="106" x2="289" y2="111" stroke="var(--amber)" stroke-width="1.5"/>
+
+        <!-- APP CACHE -->
+        <rect x="335" y="90" width="125" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="397" y="116" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">APP CACHE</text>
+        <text x="397" y="133" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">own TTL, own clock</text>
+        <circle cx="444" cy="106" r="7" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+        <line x1="444" y1="106" x2="439" y2="111" stroke="var(--amber)" stroke-width="1.5"/>
+
+        <!-- ORIGIN DB -->
+        <rect x="495" y="90" width="125" height="70" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="557" y="116" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="currentColor">ORIGIN DB</text>
+        <text x="557" y="133" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">source of truth</text>
+
+        <!-- backward invalidation arrows -->
+        <line x1="495" y1="176" x2="463" y2="176" stroke="var(--coral)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <path d="M463,176 L470,172 L470,180 Z" fill="var(--coral)"/>
+        <line x1="335" y1="176" x2="303" y2="176" stroke="var(--coral)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <path d="M303,176 L310,172 L310,180 Z" fill="var(--coral)"/>
+        <line x1="175" y1="176" x2="143" y2="176" stroke="var(--coral)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <path d="M143,176 L150,172 L150,180 Z" fill="var(--coral)"/>
+        <text x="320" y="194" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--coral)">invalidation must travel backward, against the read path</text>
+
+        <!-- write arrow into DB -->
+        <line x1="557" y1="204" x2="557" y2="163" stroke="var(--teal)" stroke-width="1.8"/>
+        <path d="M550,169 L557,159 L564,169 Z" fill="var(--teal)"/>
+        <text x="557" y="216" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="var(--teal)">WRITE price=$9.99</text>
+
+        <!-- price-tag pills: the coherence problem, made concrete -->
+        <rect x="34" y="235" width="86" height="22" rx="11" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1"/>
+        <text x="77" y="250" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--coral)">$12.99 stale</text>
+
+        <rect x="194" y="235" width="86" height="22" rx="11" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1"/>
+        <text x="237" y="250" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--coral)">$12.99 stale</text>
+
+        <rect x="354" y="235" width="86" height="22" rx="11" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1"/>
+        <text x="397" y="250" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--coral)">$12.99 stale</text>
+
+        <rect x="514" y="235" width="86" height="22" rx="11" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1"/>
+        <text x="557" y="250" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--teal)">$9.99 current</text>
+      </svg>
+      <figcaption>The moment right after the write commits: origin DB is correct, and three independently-clocked caches are confidently, silently wrong. Every one of them is doing exactly what it was configured to do. That gap — however long it takes invalidation to travel backward against the read path — <em>is</em> the cache-coherence problem.</figcaption>
+    </figure>
+    <p class="tight">Before any invalidation strategy matters, the cache <b>key</b> has to be designed correctly — get this wrong and the strategy is irrelevant, because you're serving the wrong content to the wrong person. A key needs to encode every dimension the response actually varies on: locale, currency, the requester's auth/entitlement level, feature-flag cohort, pagination and sort order, response encoding. Omit one of those at a shared layer — a CDN or reverse proxy sitting in front of many users — and you get a security bug, not a performance bug: User A's personalized response gets cached under a key that User B's identical-looking request also matches, and B is served A's data. This class of bug has a name, <b>web cache deception / web cache poisoning</b>, and it shows up in bug-bounty reports on a regular basis, almost always traced to a key that didn't include a dimension the origin response actually depended on.</p>
+    <p class="tight">The opposite mistake costs money instead of security: over-including dimensions <em>fragments</em> the cache. A key that varies on raw query-string order, or on a session ID that changes every login, can be technically correct and still have a near-zero hit rate — a cache that's never reused isn't a cache, it's overhead. The fix is <b>canonicalization</b>: sort query parameters before hashing them into the key, strip parameters that don't affect the response (tracking params are the usual offender), and fold in only the dimensions that genuinely change the output. The hands-on section below builds one specific, powerful key-design pattern — the <b>content-hash / versioned key</b> — that sidesteps the invalidation problem for an entire class of cacheable data.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Watch invalidation propagate, live</h2>
+    <p class="dek">Same write, same four layers, three different invalidation strategies. Pick a strategy and press play. The horizontal axis is relative time, not literal seconds — what matters is the size of each layer's window and how it compares across strategies, which mirrors real TTL/purge-latency ratios. The dashed line marks the moment the write commits to the origin DB.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Invalidation strategy">
+          <button data-strategy="ttl" aria-pressed="true">TTL expiry</button>
+          <button data-strategy="purge" aria-pressed="false">explicit purge</button>
+          <button data-strategy="versioned" aria-pressed="false">versioned key</button>
+        </div>
+        <span class="stat-line" id="mechReadout"></span>
+      </div>
+
+      <div class="controls-row">
+        <label class="toggle-row" id="hotkeyToggleRow">
+          <input type="checkbox" id="hotkeyToggle">
+          simulate a hot key (~200 concurrent requests at expiry)
+        </label>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="stat-line" id="staleReadout"></span>
+          <button class="playbtn" id="playBtn">&#9654; Play</button>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-inner" id="timelineInner">
+          <div class="ruler"><span>t=0</span><span>t=25</span><span>t=50</span><span>t=75</span><span>t=100</span></div>
+          <div id="lanes"></div>
+          <div class="event-marker" style="left:20%;"></div>
+          <div class="playhead" id="playhead" data-t="0"></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--grey-soft); border:1px solid var(--border)"></span>old value, consistent (never claims to be current)</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>fresh &amp; coherent (serving the current value)</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>stale &amp; incoherent (serving old value as if current)</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>miss / refetch / purge in flight</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral); background-image:repeating-linear-gradient(45deg, var(--amber) 0 3px, var(--coral) 3px 6px);"></span>origin overloaded by concurrent misses</span>
+      </div>
+      <p class="console-note" id="consoleCaption"></p>
+    </div>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>Facebook/Meta's TAO</b>, the read-through cache sitting in front of the social graph, solves cross-region coherence with an invalidation pipeline (historically called McSqueal) that pushes deletes out to every region's cache after a write commits — explicit purge, propagated at global scale, because TTL alone was too slow for a graph where "is this still my friend" needs to be right almost immediately.</li>
+      <li><b>Scaling Memcache at Facebook</b> (NSDI '13) introduced <b>leases</b> — a token-based single-flight mechanism baked directly into Memcached — specifically to stop thundering herds: when a key misses, exactly one client gets a lease to go fetch it from the DB; everyone else is told to hold. The hands-on section below builds the same idea from scratch in ~20 lines of Python.</li>
+      <li><b>Fastly and Cloudflare's "surrogate keys" / cache tags</b> let you tag many cached objects with one logical key and purge all of them in a single call — Fastly's own documentation states purges propagate across its edge network in well under a second. This is explicit purge at CDN scale, and it's exactly why large sites can invalidate "every page mentioning this product" instantly instead of waiting out a TTL.</li>
+      <li><b>Webpack, Vite, and basically every modern JS bundler</b> ship assets as <code>app.a3f9c2.js</code> — a content hash baked into the filename. Paired with <code>Cache-Control: public, max-age=31536000, immutable</code>, this is the versioned-key pattern in production: a one-year browser cache is safe specifically because the filename changes the instant the content does, so there's nothing to invalidate.</li>
+      <li><b>MySQL removed its built-in query cache entirely in 8.0</b>, after 15+ years, because the invalidation model was exactly this lesson's coherence problem taken to its worst case: one global mutex, and <em>any</em> write to a table invalidated every cached query touching it, which collapsed throughput under write-heavy load. It's the clearest real-world proof that an invalidation strategy can be so expensive it's worse than not caching at all.</li>
+      <li><b><code>stale-while-revalidate</code></b> (RFC 5861), supported by most modern CDNs and browsers via the <code>Cache-Control</code> header, is the elegant middle ground this lesson's console doesn't have a tab for: serve the stale value immediately to whoever asks, kick off a background refetch, and let the <em>next</em> request get the fresh value — bounded staleness with zero added latency and, as a side effect, no thundering herd, because only one background refetch runs per expiry.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: build the fix, not just the diagram</h2>
+    <p class="dek">Two things worth proving with real code instead of taking on faith: that an unprotected TTL cache really does let a thundering herd through, and that a versioned key really does produce a different key for different content with zero coordination required.</p>
+
+    <div class="label-row">bench_cache.py</div>
+    <pre class="code"><code>import hashlib
+import threading
+import time
+
+DB_CALLS = 0
+DB_CALLS_LOCK = threading.Lock()
+
+
+def slow_db_read(key):
+    """Simulates a real DB round trip -- the thing every cache exists to avoid."""
+    global DB_CALLS
+    with DB_CALLS_LOCK:
+        DB_CALLS += 1
+    time.sleep(0.05)  # 50ms, roughly a realistic uncached read under load
+    return f"value-for-{key}"
+
+
+class NaiveTTLCache:
+    """No stampede protection. Every thread that observes a miss/expiry
+    goes straight to the DB itself -- this is the default behavior of a
+    plain dict-with-expiry or an unprotected Redis GET-then-SET."""
+
+    def __init__(self):
+        self.store = {}  # key -&gt; (value, expires_at)
+
+    def get(self, key, ttl, loader):
+        entry = self.store.get(key)
+        now = time.monotonic()
+        if entry and entry[1] &gt; now:
+            return entry[0]
+        value = loader(key)
+        self.store[key] = (value, now + ttl)
+        return value
+
+
+class SingleFlightTTLCache:
+    """Stampede protection via a per-key lock ('lease' in Facebook's Memcache
+    paper terminology). Only the first thread to see the miss calls the
+    loader; every other thread blocks on that same lock and then reads the
+    value the first thread just filled in -- no redundant DB calls."""
+
+    def __init__(self):
+        self.store = {}
+        self.locks = {}
+        self.locks_guard = threading.Lock()
+
+    def get(self, key, ttl, loader):
+        entry = self.store.get(key)
+        now = time.monotonic()
+        if entry and entry[1] &gt; now:
+            return entry[0]
+
+        with self.locks_guard:
+            lock = self.locks.setdefault(key, threading.Lock())
+
+        with lock:
+            # Re-check: whoever held the lock before us may have refilled it.
+            entry = self.store.get(key)
+            now = time.monotonic()
+            if entry and entry[1] &gt; now:
+                return entry[0]
+            value = loader(key)
+            self.store[key] = (value, now + ttl)
+            return value
+
+
+def hammer(cache, key, ttl, workers=200):
+    threads = [
+        threading.Thread(target=cache.get, args=(key, ttl, slow_db_read))
+        for _ in range(workers)
+    ]
+    t0 = time.perf_counter()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return time.perf_counter() - t0
+
+
+def content_hash_key(prefix: str, payload: bytes) -&gt; str:
+    """Versioned-key pattern: the key IS a fingerprint of the content, so a
+    write never mutates an existing key -- it produces a brand-new one.
+    Nothing needs to be invalidated because nothing was ever overwritten."""
+    digest = hashlib.sha256(payload).hexdigest()[:10]
+    return f"{prefix}:{digest}"</code></pre>
+
+    <div class="label-row">output — python3 bench_cache.py (this machine, CPython 3.10.12, run for real)</div>
+    <pre class="output"><code>=== Thundering herd: 200 concurrent requests race a just-expired key ===
+naive TTL cache        :  200 DB calls, 0.060s wall time
+single-flight (lease)  :    1 DB calls, 0.059s wall time
+
+=== Versioned-key cache busting ===
+v1 key (price=999) : product:42:02f475c563
+v2 key (price=899) : product:42:39def51860
+same key after edit?: False  &lt;- new value, new key -- old readers
+                                    keep serving v1 correctly until
+                                    they re-fetch the pointer to v2.</code></pre>
+    <p class="tight"><b>Read the wall-clock column again before you read the DB-call column.</b> Both caches finish in ~0.06s — because the 200 threads are all I/O-bound and overlap freely (this is lesson 01's GIL lesson showing up again: <code>time.sleep</code> releases it). Wall-clock time hides the damage completely. The naive cache pushed <b>200x</b> the query load the DB actually needed onto it, in the same instant, and nothing about "the endpoint feels fast" would tell you that happened. This is exactly why thundering herd is a production incident that shows up as "the database fell over" with no slow individual request to point at.</p>
+
+    <p class="tight"><b>The exercise</b> — predict before you run it, then check:</p>
+    <pre class="code"><code># SingleFlightTTLCache currently makes every waiting thread block until the
+# leader finishes, then return the FRESH value. Extend it into a
+# stale-while-revalidate variant instead:
+#
+#   - if a key is expired but an old value still exists in self.store,
+#     let ONE thread acquire the lock and refill it in the background
+#     (or just synchronously for this exercise) -- exactly as today --
+#   - but every OTHER concurrent caller should return the OLD value
+#     immediately instead of blocking on the lock.
+#
+# 1. Predict: does DB_CALLS change from the single-flight run above?
+# 2. Predict: does the 200-thread wall-clock time change, and if so,
+#    which direction?
+# 3. Implement it, rerun hammer(), and check both predictions.</code></pre>
+    <p class="tight">DB_CALLS stays at 1 — you still only refill once. Wall time drops close to zero for the 199 waiters, because they never touch the lock at all; they read <code>entry[0]</code> straight out of <code>self.store</code> even though <code>entry[1]</code> says it's expired. That's the entire trick behind <code>stale-while-revalidate</code>: staleness bounded to "however long one refill takes," paid by nobody's latency.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "I'd just set a short TTL so the cache doesn't go stale." <b>Strong:</b> "TTL bounds staleness, it doesn't eliminate the coherence window — for that window, multiple layers can disagree about 'current' and both be technically correctly configured. Explicit purge shrinks that window on every layer you control, but it can't reach a client's local disk cache at all. Versioned keys eliminate the coherence bug entirely — nothing is ever mutated, so nothing is ever 'wrong' — at the cost of storage growth and needing one atomic place that says which key is current. I'd match the strategy to blast radius: cheap idempotent reads get TTL, anything financially or security sensitive gets purge-plus-versioning with a short TTL backstop."</li>
+        <li>The killer follow-up: <b>"Your CDN purge succeeds instantly and Redis clears in milliseconds, but support tickets say some users see the old price for up to a year. What's actually happening, and how do you fix it without losing cacheability?"</b> The trap answer is "the purge is broken." It isn't — purge has no path to a browser's local cache at all, and the response was almost certainly served with a long <code>max-age</code>. The fix isn't a bigger purge, it's a shorter client TTL on mutable data, or better: put the mutable field behind a versioned reference so the browser cache being long-lived stops being the problem in the first place.</li>
+        <li>The nuance worth naming unprompted: production systems don't pick <em>one</em> strategy, they layer all three — a short TTL everywhere as a universal backstop that bounds worst-case staleness even if a purge silently fails, explicit purge for the fast path on layers you control, and versioned/immutable keys for anything that can be content-addressed. A candidate who presents these as mutually exclusive hasn't operated a cache that mattered.</li>
+        <li>Know the real numbers, not just the shape of the argument: a fingerprinted static asset gets a <code>max-age</code> in the ~1-year range because it's provably safe to; an API response behind a CDN typically gets seconds-to-low-minutes; an app-level cache entry (Redis) is usually seconds-to-tens-of-seconds. Be ready to state which number you're assuming out loud and defend it — that's the same discipline lesson 11 pushed for capacity numbers.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">A product-price API is cached at three layers: CDN edge (TTL 300s), app-level Redis via cache-aside (TTL 30s), and the client's own HTTP cache (<code>Cache-Control: max-age=600</code>). A pricing bug is fixed and deployed at 2:00pm. A support ticket at 2:04pm says a customer is still seeing the wrong price.</p>
+      <p class="tight"><b>Is that expected, and which layer is almost certainly responsible? Now the harder part: if the fix needs to be visible everywhere within 5 seconds for compliance reasons, which invalidation strategy would you switch to, for which layer or layers specifically — and which one layer can you never fully guarantee, even after switching?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Resurfacing lesson 06 — Redis Caching Patterns</h3>
+      <p class="tight">Lesson 06 covered the mechanics of a single Redis cache — cache-aside vs. write-through vs. write-behind, eviction under <code>maxmemory</code> (LRU/LFU), and why a per-key TTL is usually the right default. Everything in that lesson was about one cache with one clock. This lesson is what happens when you stack several of those — a browser cache, a CDN, and Redis itself — each faithfully running the exact patterns lesson 06 taught, with no shared awareness of each other. The single-flight lock built in the hands-on section above is a direct extension of lesson 06's cache-aside pattern: same "check cache, miss, fetch, populate" shape, with one lock added specifically to stop N concurrent cache-aside misses from becoming N concurrent DB hits. If lesson 06's patterns felt like "the whole story" at the time, this lesson is the reminder that a single Redis instance's correctness doesn't automatically add up to system-wide coherence.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="12-load-balancing.html"><span class="pnl">&larr; previous</span>Load Balancing</a><a class="pn-next" href="14-database-scaling-replication-sharding.html"><span class="pnl">next &rarr;</span>Database Scaling: Replication &amp; Sharding</a></nav>
+<footer class="page">timeline proportions in the console are illustrative, chosen to mirror realistic TTL/purge-latency ratios, not measured infrastructure data · thundering-herd benchmark output captured for real via <code>python3 bench_cache.py</code> on this machine, CPython 3.10.12 · lesson 13 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const LANE_ORDER = ['client','cdn','app','db'];
+  const LANE_LABELS = { client:'client', cdn:'CDN edge', app:'app cache', db:'origin DB' };
+  const STATE_CLASS = { idle:'state-idle', io:'state-io', blocked:'state-blocked', running:'state-running', overload:'state-overload' };
+
+  function ttlSegs(hot){
+    const db = hot
+      ? [{s:0,e:20,st:'idle'},{s:20,e:30,st:'io'},{s:30,e:38,st:'overload'},{s:38,e:100,st:'io'}]
+      : [{s:0,e:20,st:'idle'},{s:20,e:100,st:'io'}];
+    const app = hot
+      ? [{s:0,e:20,st:'idle'},{s:20,e:30,st:'blocked'},{s:30,e:39,st:'running'},{s:39,e:100,st:'io'}]
+      : [{s:0,e:20,st:'idle'},{s:20,e:30,st:'blocked'},{s:30,e:33,st:'running'},{s:33,e:100,st:'io'}];
+    const cdn = [{s:0,e:20,st:'idle'},{s:20,e:45,st:'blocked'},{s:45,e:48,st:'running'},{s:48,e:100,st:'io'}];
+    const client = [{s:0,e:20,st:'idle'},{s:20,e:65,st:'blocked'},{s:65,e:68,st:'running'},{s:68,e:100,st:'io'}];
+    return { client, cdn, app, db };
+  }
+
+  function purgeSegs(){
+    return {
+      client: [{s:0,e:20,st:'idle'},{s:20,e:100,st:'blocked'}],
+      cdn:    [{s:0,e:20,st:'idle'},{s:20,e:33,st:'running'},{s:33,e:100,st:'io'}],
+      app:    [{s:0,e:20,st:'idle'},{s:20,e:22,st:'running'},{s:22,e:100,st:'io'}],
+      db:     [{s:0,e:20,st:'idle'},{s:20,e:100,st:'io'}],
+    };
+  }
+
+  function versionedSegs(){
+    return {
+      client: [{s:0,e:30,st:'idle'},{s:30,e:34,st:'running'},{s:34,e:100,st:'io'}],
+      cdn:    [{s:0,e:20,st:'idle'},{s:20,e:26,st:'running'},{s:26,e:100,st:'io'}],
+      app:    [{s:0,e:20,st:'idle'},{s:20,e:22,st:'running'},{s:22,e:100,st:'io'}],
+      db:     [{s:0,e:20,st:'idle'},{s:20,e:100,st:'io'}],
+    };
+  }
+
+  const META = {
+    ttl: {
+      mech: 'no invalidation call — each layer only notices the write when its own clock rolls over',
+      stale: 'worst case &#8776; 65 units here, bounded by whichever layer set the longest TTL (the client)',
+      caption: 'Nobody purges anything. The write lands in the origin DB instantly, but every cache above it keeps serving the old value — confidently, as if it were current — until its own TTL happens to expire. At t=40 the DB, the app cache and the CDN can each report a different "current" price for the same product, and all three are doing exactly what they were configured to do.'
+    },
+    'ttl-hot': {
+      mech: 'no invalidation call — plus a hot key means many clients hit the expiry at once',
+      stale: 'same &#8776;65-unit worst case — but the recovery moment now costs far more than one query',
+      caption: 'The app-cache TTL expires under real traffic: roughly 200 concurrent requests all observe the miss inside the same instant, and every one of them falls through to the DB before any single one can refill the cache. The origin absorbs a load spike it was never sized for, and the recovery window itself widens. This is the exact failure the single-flight lock in the hands-on section is built to prevent — and the benchmark below shows the same 200-to-1 gap with real numbers.'
+    },
+    purge: {
+      mech: 'the write triggers a purge cascade through every layer a purge API can actually reach',
+      stale: 'app cache + CDN clear in ~2–13 units — the client lane never turns green in this run',
+      caption: 'Purge collapses the two server-side layers dramatically fast. But look at the client row — it never turns teal, for the entire rest of the window. No purge call can reach a browser’s local disk cache; that layer is bounded only by whatever Cache-Control TTL the response carried. Production systems pair purge with a short, deliberate client TTL as a backstop — nobody relies on purge alone.'
+    },
+    versioned: {
+      mech: 'the write produces a brand-new key — nothing already cached is ever mutated',
+      stale: '0 — no layer ever serves a value while claiming it is something it is not',
+      caption: 'Watch the red disappear completely. Every layer either keeps correctly serving the old version under the old key, or naturally misses on the new key and fetches it — there is no window where a layer lies about what it’s holding. The cost moved, it didn’t vanish: old versions pile up in storage, and something still has to atomically flip the pointer that tells everyone which key is "current" right now.'
+    },
+  };
+
+  let state = { strategy:'ttl', hotkey:false };
+  let playing = false;
+  let rafId = null;
+  let startTs = null;
+  const DURATION = 4200;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const lanesEl = document.getElementById('lanes');
+  const playheadEl = document.getElementById('playhead');
+  const playBtn = document.getElementById('playBtn');
+  const mechEl = document.getElementById('mechReadout');
+  const staleEl = document.getElementById('staleReadout');
+  const captionEl = document.getElementById('consoleCaption');
+  const hotkeyRow = document.getElementById('hotkeyToggleRow');
+  const hotkeyToggle = document.getElementById('hotkeyToggle');
+
+  function computeSegs(){
+    if(state.strategy === 'ttl') return ttlSegs(state.hotkey);
+    if(state.strategy === 'purge') return purgeSegs();
+    return versionedSegs();
+  }
+
+  function metaKey(){
+    if(state.strategy === 'ttl' && state.hotkey) return 'ttl-hot';
+    return state.strategy;
+  }
+
+  function render(){
+    const segsByLane = computeSegs();
+    lanesEl.innerHTML = '';
+    LANE_ORDER.forEach(laneKey => {
+      const lane = document.createElement('div');
+      lane.className = 'lane';
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = LANE_LABELS[laneKey];
+      const track = document.createElement('div');
+      track.className = 'lane-track';
+      segsByLane[laneKey].forEach(seg => {
+        const d = document.createElement('div');
+        d.className = 'seg ' + STATE_CLASS[seg.st];
+        d.style.left = seg.s + '%';
+        d.style.width = (seg.e - seg.s) + '%';
+        d.dataset.start = seg.s;
+        d.dataset.end = seg.e;
+        track.appendChild(d);
+      });
+      lane.appendChild(label);
+      lane.appendChild(track);
+      lanesEl.appendChild(lane);
+    });
+
+    hotkeyRow.classList.toggle('hidden', state.strategy !== 'ttl');
+    const meta = META[metaKey()];
+    mechEl.textContent = meta.mech;
+    staleEl.innerHTML = meta.stale;
+    captionEl.textContent = meta.caption;
+
+    setPlayheadPercent(0);
+    playBtn.textContent = '▶ Play';
+    playing = false;
+    if(rafId) cancelAnimationFrame(rafId);
+
+    if(reduceMotion){
+      setPlayheadPercent(100);
+    }
+  }
+
+  function setPlayheadPercent(pct){
+    playheadEl.style.left = pct + '%';
+    playheadEl.dataset.t = 't=' + Math.round(pct);
+    lanesEl.querySelectorAll('.seg').forEach(seg=>{
+      const s = parseFloat(seg.dataset.start), e = parseFloat(seg.dataset.end);
+      seg.classList.toggle('active', pct >= s && pct < e && pct < 100);
+    });
+  }
+
+  function tick(ts){
+    if(startTs === null) startTs = ts;
+    const elapsed = ts - startTs;
+    const pct = Math.min(100, (elapsed / DURATION) * 100);
+    setPlayheadPercent(pct);
+    if(pct < 100){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      playing = false;
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function play(){
+    if(reduceMotion){
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+    startTs = null;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if(playing) return;
+    play();
+  });
+
+  document.querySelectorAll('[data-strategy]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-strategy]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.strategy = btn.dataset.strategy;
+      render();
+    });
+  });
+  hotkeyToggle.addEventListener('change', () => {
+    state.hotkey = hotkeyToggle.checked;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

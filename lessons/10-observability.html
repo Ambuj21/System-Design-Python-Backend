@@ -1,0 +1,1011 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 — Observability</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="09-packaging-deployment.html"><span class="pnl">&larr; previous</span>Packaging &amp; Deployment</a><a class="pn-next" href="11-scalability-fundamentals.html"><span class="pnl">next &rarr;</span>Scalability Fundamentals</a></nav>
+
+  <p class="kicker">Python backend mastery · Phase 1 · Lesson 10</p>
+  <h1>Observability</h1>
+  <p class="lede">Which of the three signals your system emits actually answers a given production question, how a counter on a service becomes a <code>rate()</code> query in Prometheus, what a span really is under the hood — and why a single missing header can make a perfectly healthy request invisible to the tracing system built to explain it.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why "we have logs" is not the answer</h2>
+    <p>Ask a mid-level engineer "is your service observable" and you'll usually get: <em>"yeah, we ship logs to Datadog."</em> That's a monitoring answer, not an observability one, and the gap between them is exactly what a staff-level interviewer is listening for.</p>
+    <p class="tight"><b>Monitoring</b> is a fixed set of dashboards and alerts for failure modes you already anticipated — you decided in advance which questions matter and wired up graphs for them. <b>Observability</b> is the ability to ask a question you did <em>not</em> anticipate — "why are only Android 12 users on the EU shard seeing 3-second checkouts since 14:02?" — and answer it from the telemetry you already emit, without shipping new code first. Logs alone rarely get you there at any real scale: grepping years of unstructured text for a needle is either impossibly slow or impossibly expensive, and a single log line from one service tells you nothing about the four other services that request touched.</p>
+    <p class="tight">The precise, staff-bar version of the answer names three distinct signals, says exactly which question each one is structurally suited to answer, and knows where each one breaks down — a metric can't tell you which specific request was slow; a trace can't cheaply tell you the error rate across a billion requests; a log line from one service can't show you the other four hops a request took. Add to that: can you define an SLI as a precise ratio, not a vibe? Do you know why Prometheus falls over if you put a user ID in a label? Can you say what a <code>traceparent</code> header actually contains? Those are the four things this lesson is built around, and the console below will let one of them break in front of you.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> One event, three witnesses</h2>
+    <p class="dek">The same thing happening inside your system — "an order was created" — can be recorded three structurally different ways at the same instant. Each shape trades detail for cost differently, and that trade is the entire reason all three exist instead of just one.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 700 250" role="img" aria-label="A request flows through Gateway, Orders Service and Payments Service, threaded together by one trace id, and continues on to Postgres. Underneath, each service emits three different signals for the same event: a metric counter increment, a structured log line, and a span with a start and end time.">
+        <rect x="20" y="26" width="120" height="54" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="80" y="57" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">Gateway</text>
+
+        <rect x="190" y="26" width="140" height="54" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="260" y="57" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">Orders Service</text>
+
+        <rect x="375" y="26" width="140" height="54" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="445" y="57" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">Payments Svc</text>
+
+        <rect x="560" y="26" width="120" height="54" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="620" y="57" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">Postgres</text>
+
+        <text x="350" y="14" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" style="fill:var(--teal)">trace_id 4bf92f3577b34da6a3ce929d0e0e4736</text>
+        <g style="stroke:var(--teal)" stroke-width="2" stroke-dasharray="1 4" stroke-linecap="round">
+          <line x1="140" y1="53" x2="188" y2="53"/>
+          <line x1="330" y1="53" x2="373" y2="53"/>
+          <line x1="515" y1="53" x2="558" y2="53"/>
+        </g>
+        <g style="fill:var(--teal)">
+          <polygon points="188,53 179,48 179,58"/>
+          <polygon points="373,53 364,48 364,58"/>
+          <polygon points="558,53 549,48 549,58"/>
+        </g>
+
+        <text x="620" y="98" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.5">trace usually stops here unless</text>
+        <text x="620" y="109" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.5">the driver is instrumented</text>
+
+        <g stroke="currentColor" stroke-opacity="0.15">
+          <line x1="20" y1="118" x2="515" y2="118"/>
+          <line x1="20" y1="163" x2="515" y2="163"/>
+          <line x1="20" y1="208" x2="515" y2="208"/>
+        </g>
+        <g font-family="ui-monospace, monospace" font-size="10" fill="currentColor" fill-opacity="0.55">
+          <text x="0" y="122">metric</text>
+          <text x="0" y="167">log</text>
+          <text x="0" y="212">span</text>
+        </g>
+
+        <g font-family="ui-monospace, monospace" font-size="9" fill="currentColor">
+          <rect x="46" y="112" width="9" height="9" rx="2" style="fill:var(--amber)"/>
+          <text x="60" y="120">+1 requests_total</text>
+          <rect x="196" y="112" width="9" height="9" rx="2" style="fill:var(--amber)"/>
+          <text x="210" y="120">+1 orders_created</text>
+          <rect x="381" y="112" width="9" height="9" rx="2" style="fill:var(--amber)"/>
+          <text x="395" y="120">+1 charges_total</text>
+        </g>
+
+        <g font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.85">
+          <text x="46" y="165">{"event":"recv"}</text>
+          <text x="196" y="165">{"event":"order.created"}</text>
+          <text x="381" y="165">{"event":"charge.ok"}</text>
+        </g>
+
+        <g stroke-width="3" stroke-linecap="round">
+          <line x1="46" y1="205" x2="132" y2="205" style="stroke:var(--teal)"/>
+          <line x1="196" y1="205" x2="270" y2="205" style="stroke:var(--amber)"/>
+          <line x1="381" y1="205" x2="440" y2="205" style="stroke:var(--teal)"/>
+        </g>
+        <g font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.7">
+          <text x="46" y="220">span 96ms</text>
+          <text x="196" y="220">span 74ms</text>
+          <text x="381" y="220">span 55ms</text>
+        </g>
+      </svg>
+      <figcaption>Same colour vocabulary as Lesson 01: amber is time spent executing your own code, teal is time spent waiting on something else (a downstream span here, an I/O wait there). A span's timeline is the GIL thread-state timeline, formalized and given a name.</figcaption>
+    </figure>
+    <p class="tight">The metric is a single integer bump against a small, fixed set of labels — cheap enough to store forever, but it can't tell you which specific order this was. The log is an arbitrarily detailed, arbitrarily unique event — it can carry the order ID, the user ID, the exact payload — but it costs real money to store and index at volume, and it says nothing about the other two services in the chain. The span carries exact timing and a parent pointer, which is the only one of the three that can answer "where, across four network hops, did the 300ms go." None of the three is a superset of the others; that's the whole reason a mature system runs all three at once.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Watch a trace hold together — or not</h2>
+    <p class="dek">Pick a scenario and press play. Every lane is one service's span for this one request; amber is that service executing its own code, teal is it waiting on a downstream call, the hatched coral is an error or timeout recorded on the span. Toggle sampling off and watch what the tracing backend receives versus what actually happened.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Scenario">
+          <button data-scenario="happy" aria-pressed="true">Happy path</button>
+          <button data-scenario="retry" aria-pressed="false">Timeout + retry</button>
+          <button data-scenario="broken" aria-pressed="false">Broken propagation</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <label class="toggle-row">
+          <input type="checkbox" id="sampledToggle" checked>
+          trace sampled at the edge (uncheck to simulate <code>sampled=0</code>)
+        </label>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="stat-line" id="resourceReadout"></span>
+          <button class="playbtn" id="playBtn">▶ Play</button>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-inner" id="timelineInner">
+          <div class="ruler" id="ruler"><span></span><span></span><span></span><span></span><span></span></div>
+          <div id="lanes"></div>
+          <div class="playhead" id="playhead" data-t="0ms"></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>running (executing its own code)</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>waiting on a downstream span</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>error / timeout on this span</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--grey-soft); border:1px solid var(--border)"></span>not started / already finished</span>
+      </div>
+      <p class="console-note" id="consoleCaption"></p>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">RED and USE, side by side</div>
+    <p class="dek" style="margin-top:0;">Two checklists, for two different kinds of thing. RED (Tom Wilkie, Weaveworks) is for anything that serves requests. USE (Brendan Gregg) is for anything that is a finite physical or logical resource — CPU, disk, a connection pool, a queue. Illustrative example dashboard below, not a live measurement — the point is the shape of the three numbers, not these exact values.</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>RED · checkout-service</h3>
+        <div class="bench-sub">rate · errors · duration — last 5 minutes</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>rate</span><span class="val">842 req/s</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:84%; background:var(--teal);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>errors (5xx)</span><span class="val">0.34%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:7%; background:var(--coral);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>duration p95</span><span class="val">214ms</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:43%; background:var(--amber);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>duration p99</span><span class="val">480ms</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:96%; background:var(--amber);"></div></div>
+        </div>
+      </div>
+      <div class="bench-card">
+        <h3>USE · Postgres primary</h3>
+        <div class="bench-sub">utilization · saturation · errors — same window</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>CPU utilization</span><span class="val">61%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:61%; background:var(--amber);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>saturation (run queue)</span><span class="val">1.8 / 4 vCPU</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:45%; background:var(--coral);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>I/O errors</span><span class="val">0</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:1%; background:var(--grey);"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="label-row">how Prometheus turns a counter into a rate</div>
+    <p class="dek" style="margin-top:0;">Prometheus is a <b>pull</b>-based system: on a fixed interval (commonly 15s), the server scrapes plain-text <code>/metrics</code> HTTP endpoints on every target and stores exactly one sample per series per scrape into its local time-series database. A <b>series</b> is the metric name plus one unique combination of label values — <code>http_requests_total{route="/checkout",status="200"}</code> is one series; every distinct route/status pair is another. This is why <code>rate()</code> exists: a raw counter only ever goes up (and resets to 0 on restart, which <code>rate()</code> detects and compensates for), so you compute the requests-per-second signal by dividing the delta between two scrapes by the elapsed time.</p>
+    <pre class="output"><code>raw counter samples every 15s : [0, 195, 446, 652, 880]
+rate() output (req/s)         : [13.0, 16.73, 13.73, 15.2]
+(same synthetic run as the hands-on script below)</code></pre>
+    <p class="tight">Two things trip people up here. First: <b>cardinality</b>. Total stored series = metric name × the product of every label's distinct value count. Twenty routes × six status codes is 120 series — fine. Twenty routes × six status codes × five million <code>user_id</code> values is 600 million series, and that is how you OOM a Prometheus server; this is the structural reason metrics and logs are different tools, not a style preference. Second: <b>histogram vs. summary</b>. A <code>Histogram</code> exposes cumulative bucket counters (<code>_bucket{le="0.3"}</code>) — the client does O(1) work per observation, and the server computes any percentile later via <code>histogram_quantile()</code>, which linearly interpolates within the bucket that crosses the target and is therefore <em>aggregatable</em> across every pod. A <code>Summary</code> computes its quantiles client-side and streams out an already-final number — cheaper to query, but you cannot average two pods' p99s into a fleet-wide p99; you'd need to recompute from raw data. Reach for Histogram unless you have a specific reason not to.</p>
+
+    <div class="label-row">defining an SLO, precisely</div>
+    <p class="dek" style="margin-top:0;">An <b>SLI</b> (indicator) is a ratio you can compute continuously: good events over valid events. An <b>SLO</b> (objective) is a target value for that ratio over a stated window — an internal number, distinct from an <b>SLA</b>, which is the external, usually looser, contractual promise with financial penalties attached. The gap between SLO and 100% is your <b>error budget</b>: the amount of "bad" you're explicitly allowed to spend on deploys, experiments, and plain bad luck before you stop shipping features and go fix reliability instead.</p>
+    <pre class="output"><code>SLI  (indicator): good_events / valid_events, measured continuously
+     e.g. requests where latency &lt; 300ms  ÷  all requests, for route=/checkout
+
+SLO  (objective):  SLI >= 99.9%  over a rolling 28-day window
+
+error budget      = (1 - 0.999) x 28 days
+                  = 0.1% x 40,320 minutes
+                  = 40.3 minutes of "bad" allowed per 28 days
+
+common budgets:
+  99%    ("two nines")   ~= 7h 18m / month
+  99.9%  ("three nines") ~= 43m     / month
+  99.99% ("four nines")  ~= 4m 22s  / month</code></pre>
+    <p class="tight">A naive alert — "page if error rate over the last 5 minutes exceeds 1%" — pages on a 90-second blip that costs almost nothing against a 28-day budget, and trains your on-call to ignore pages. The fix that shows up in the Google SRE workbook is <b>multi-window, multi-burn-rate alerting</b>: only page when the budget is being consumed fast enough, confirmed across two window lengths at once, so a short spike that self-heals doesn't fire and a slow leak still gets caught before the budget is gone.</p>
+    <pre class="output"><code>burn rate 14.4x  over 1h  (confirm over 5m)   -> page    (exhausts 28d budget in ~2 days)
+burn rate  6x    over 6h  (confirm over 30m)  -> page    (exhausts budget in ~5 days)
+burn rate  1x    over 3d                      -> ticket  (exhausts budget exactly on schedule)</code></pre>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>Prometheus + Grafana + Alertmanager.</b> The dominant open-source metrics stack: Prometheus pulls and stores (default ~15 days local retention), Grafana renders PromQL, Alertmanager dedupes and routes alerts. For retention past two weeks or a global view across many Prometheus servers, teams add <b>Thanos</b>, <b>Cortex</b>, <b>Mimir</b>, or <b>VictoriaMetrics</b> on top via <code>remote_write</code>.</li>
+      <li><b>OpenTelemetry (OTel).</b> The now-standard, vendor-neutral instrumentation layer: a language SDK generates spans/metrics/logs, and the <b>OTel Collector</b> — a separate deployable pipeline of receivers → processors → exporters — does batching, PII scrubbing, and sampling centrally instead of inside every service. Traces land in <b>Jaeger</b>, <b>Tempo</b>, <b>Honeycomb</b>, or a vendor APM (Datadog, New Relic).</li>
+      <li><b>W3C Trace Context</b> is the propagation format the console above uses — the <code>traceparent</code> header (<code>version-traceid-spanid-flags</code>) — which replaced older vendor-specific formats like Zipkin's B3 headers or Datadog's <code>x-datadog-trace-id</code> as the interoperable default most SDKs speak out of the box.</li>
+      <li><b>Head-based vs. tail-based sampling.</b> Head-based (decide at the root, before you know if the trace is interesting — OTel's default <code>ParentBased(TraceIdRatioBased)</code>) is cheap and simple but can miss the one slow outlier in ten thousand. Tail-based sampling buffers every span for a trace at the Collector and decides after seeing the whole thing — "always keep traces with an error or over 1s" — at the cost of buffering and needing every span for one trace routed to the same Collector instance.</li>
+      <li><b>Structured JSON logs → Loki / Elasticsearch / Datadog</b>, with <code>trace_id</code> injected into every log line so a dashboard can jump straight from "this span was slow" to "here are the exact log lines emitted during it" — the correlation the hands-on script below builds by hand.</li>
+      <li><b>node_exporter / cAdvisor</b> expose host and container CPU, memory, disk, and network stats in Prometheus format — the raw material for USE-method infrastructure dashboards.</li>
+      <li><b>Error budgets and burn-rate alerting</b> were formalized in Google's SRE book and workbook and are now standard practice at Google, Netflix, Uber, and most large-scale shops: exhaust the budget and feature launches pause until reliability work brings it back.</li>
+      <li><b>eBPF-based auto-instrumentation</b> (Grafana Beyla, Pixie, Odigos) is the emerging alternative to hand-instrumenting every service: it captures spans and metrics from kernel-level syscall/network hooks with zero code changes, at the cost of coarser control over what gets captured.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: build the mechanism, not just the vocabulary</h2>
+    <p class="dek">A minimal, dependency-free tracer that implements real W3C traceparent propagation, plus a Prometheus-style histogram with the actual percentile-estimation algorithm — the two mechanisms below are the real, complete functions; the sample output further down is illustrative, shaped by running the full version of this script (synthetic request generator, <code>Span</code> class, and bucket definitions included) rather than a transcript of only the fragments shown on this page.</p>
+
+    <div class="label-row">tracer.py — the propagation mechanism</div>
+    <pre class="code"><code>def start_span(name, incoming_headers=None):
+    """
+    incoming_headers is None   -> plain in-process child span; fall back to
+                                   whatever span is 'current' via contextvars.
+    incoming_headers is a dict -> this call just crossed a simulated network
+                                   boundary. Trust ONLY the headers -- a real
+                                   remote service has no access to this
+                                   process's call stack. Missing/invalid
+                                   header means: start a brand-new trace root.
+    """
+    if incoming_headers is not None:
+        extracted = extract(incoming_headers)
+        if extracted:
+            trace_id, parent_span_id = extracted
+        else:
+            trace_id, parent_span_id = _rand_hex(16), None   # orphaned trace
+    else:
+        current = _trace_ctx.get()
+        if current:
+            trace_id, parent_span_id = current["trace_id"], current["span_id"]
+        else:
+            trace_id, parent_span_id = _rand_hex(16), None
+    return _SpanCM(Span(name, trace_id, _rand_hex(8), parent_span_id))
+
+def inject(headers: dict):
+    """Write the current span onto an outgoing request as a real
+    W3C traceparent: version-traceid-spanid-flags."""
+    ctx = _trace_ctx.get()
+    if ctx is None:
+        return
+    headers["traceparent"] = f"00-{ctx['trace_id']}-{ctx['span_id']}-01"
+
+def extract(headers: dict):
+    if not headers:
+        return None
+    parts = headers.get("traceparent", "").split("-")
+    if len(parts) != 4:
+        return None
+    _version, trace_id, span_id, _flags = parts
+    return trace_id, span_id</code></pre>
+
+    <div class="label-row">histogram.py — bucket-based percentile estimation</div>
+    <pre class="code"><code>def histogram_quantile(hist, q: float):
+    """Reimplementation of PromQL's histogram_quantile(): find the bucket
+    whose cumulative count crosses q * total, then linearly interpolate
+    within that bucket's range. O(number of buckets) per query -- an exact
+    percentile from raw samples needs O(n log n) to sort, or a running
+    reservoir; the histogram trades precision for that constant-time cost."""
+    target = q * hist.count
+    prev_bound, prev_count = 0.0, 0
+    for b in hist.buckets:
+        count = hist.bucket_counts[b]
+        if count &gt;= target:
+            if b == float("inf"):
+                return prev_bound
+            if count == prev_count:
+                continue
+            frac = (target - prev_count) / (count - prev_count)
+            return prev_bound + frac * (b - prev_bound)
+        prev_bound, prev_count = b, count
+    return hist.buckets[-2]</code></pre>
+
+    <div class="label-row">output (illustrative — representative of a real run of the full script, not a literal transcript of the fragments above)</div>
+    <pre class="output"><code>=== 1. structured logs (stdout is what your log shipper would tail) ===
+{"level": "INFO", "logger": "orders", "msg": "order validated", "sku": "SKU-119", "span_id": "0b545d1e...", "trace_id": "e9cf0a6f...", "ts": 1787117613.803}
+{"amount_cents": 4599, "level": "INFO", "logger": "orders", "msg": "card charged", "span_id": "df427ab7...", "trace_id": "e9cf0a6f...", "ts": 1787117613.806}
+
+=== 2a. trace tree WITH context propagation ===
+gateway.handle_request  (trace=0f220899 span=0a04734a parent=- 3.21ms)
+  orders.create_order  (trace=0f220899 span=132ca2ed parent=0a04734a 3.2ms)
+    payments.charge_card  (trace=0f220899 span=797590e2 parent=132ca2ed 2.11ms)
+
+=== 2b. trace tree with ONE hop dropping the traceparent header ===
+payments.charge_card  (trace=ed30f81b span=333ca8b7 parent=- 2.14ms)
+gateway.handle_request  (trace=bc5f2edd span=bc6853b6 parent=- 3.25ms)
+  orders.create_order  (trace=bc5f2edd span=558b0bd3 parent=bc6853b6 3.25ms)
+
+=== RED metrics from 200 synthetic requests ===
+rate      : 200 requests observed
+errors    : 14 (7.0%)
+duration  : true p50=93.9ms  p95=225.6ms  p99=498.4ms
+            est. p50=94.5ms  p95=248.2ms  p99=468.8ms   (from 12 buckets, O(1) per observation)
+
+=== rate(requests_total[15s]) across 4 scrapes ===
+raw counter samples every 15s: [0, 195, 446, 652, 880]
+rate() output (req/s)        : [13.0, 16.73, 13.73, 15.2]</code></pre>
+    <p class="tight">Look at <b>2b</b> closely — this is the exact bug the console above visualizes. One dropped header and the single trace tree splits into <em>two disconnected roots</em>: <code>payments.charge_card</code> shows up as its own orphan trace, and <code>gateway → orders</code> looks like it called out into nothing. Nothing crashed, nothing logged an error, latency barely moved. The only symptom is a hole in your tracing UI — which is exactly why this class of bug survives in production for months.</p>
+    <p class="tight">Also note the histogram estimate: p95 came out 248ms against a true 225ms — a ~10% overestimate purely from bucket granularity. That gap is controllable: pick bucket boundaries clustered around your actual SLO threshold (0.3s in this lesson's examples) and the interpolation error shrinks right where you need precision most; leave the default buckets and you're most accurate exactly where you don't need to be.</p>
+
+    <p class="tight"><b>The exercise:</b></p>
+    <pre class="code"><code># 1. DEFAULT_BUCKETS currently has no bucket at 0.3s. Add one, rerun, and
+#    check whether histogram_quantile(hist, 0.95) moves closer to the true
+#    p95 computed from the raw samples.
+#
+# 2. call_orders() always propagates unless drop_context=True is forced.
+#    Change it to drop the header at random (p=0.05) and run the whole
+#    chain 20 times. Count how many runs produced an orphan trace --
+#    that fraction is exactly your "silent trace loss" rate in production
+#    if one team ships a client that forgets to propagate headers.
+#
+# 3. Add an errors_total Counter that increments whenever a span's
+#    status is "ERROR", and print the RED error-rate metric alongside
+#    the rate and duration ones that are already there.</code></pre>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "We'll page if the error rate goes above 1%." <b>Strong:</b> "First I'd define the SLI precisely — good/valid ratio, for which route, over what window — pick the SLO from the latency threshold that actually maps to user pain (not an arbitrary round number), and then alert on <em>burn rate</em> against the resulting error budget with two confirming windows, not a single 5-minute threshold. A blip that self-heals in 90 seconds shouldn't page; a slow leak that will exhaust a month's budget in two days should page immediately."</li>
+        <li>The killer follow-up: <b>"Your on-call got paged at 2am by a 5-minute error-rate alert for something that resolved in 90 seconds. Redesign the alerting so this doesn't happen again — without missing a real incident."</b> The answer is multi-window, multi-burn-rate alerting: a fast, high-multiplier burn confirmed over both a short and a long window pages immediately (it's real and urgent); a slow, low-multiplier burn only tickets, because there's time to fix it before the budget runs out. A single-window threshold physically cannot distinguish these two shapes.</li>
+        <li>A second follow-up worth having ready: <b>"Why can't you just put user_id as a Prometheus label and slice by user when something breaks?"</b> Cardinality — every distinct label value combination is a separate stored series, and unbounded IDs turn a few hundred series into hundreds of millions. That's precisely the job a trace or a structured log does instead; naming which of the three tools fits which question, unprompted, is the tell of someone who has actually operated this stack rather than read about it.</li>
+        <li>Know the SLA/SLO/SLI distinction cold: SLI is the measurement, SLO is your internal target (with an error budget attached), SLA is the external contractual promise — usually looser than your SLO on purpose, so you breach your own target and fix it before you ever owe a customer a refund.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Your team is about to ship a new <code>/search</code> endpoint. Write, in one sentence, the SLI you'd propose for it and an SLO with a stated window. Then: a burn-rate alert fires on that SLO at 3am. Which of the three signals — metrics, logs, or traces — would you reach for <em>first</em> to find out <em>why</em>, and which of the other two would you reach for second? Be specific about what each one can and can't tell you here.</p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Resurfacing Lesson 07 — Testing Strategy for Backend Systems</h3>
+      <p class="tight">Lesson 07 was about drawing a hard line around what a test can actually prove: a known scenario, run against code you can read, before it ships. Observability is the same discipline pointed the other direction — metrics, logs, and traces tell you what an <em>unknown</em> scenario really did in production, against inputs and failure modes nobody wrote a test for. Put them next to each other and a useful habit falls out: treat your SLO as a test you didn't have to hand-write. It runs continuously, against real traffic, and a burn-rate alert is just that test's failure notification — arriving after the fact instead of in CI, but built from exactly the same instinct your Lesson 07 test suite was.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="09-packaging-deployment.html"><span class="pnl">&larr; previous</span>Packaging &amp; Deployment</a><a class="pn-next" href="11-scalability-fundamentals.html"><span class="pnl">next &rarr;</span>Scalability Fundamentals</a></nav>
+<footer class="page">rate()/error-budget arithmetic computed directly · tracer and histogram output illustrative, modeled on CPython 3.10.12 behavior · lesson 10 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const S = { running:'state-running', io:'state-io', blocked:'state-blocked', idle:'state-idle' };
+  const LANE_LABELS = ['gateway','orders','payments','postgres'];
+
+  const SCEN = {
+    happy: {
+      totalMs: 118,
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      spanCount: 4,
+      orphanFrom: null,
+      segs: [
+        [[0,3,'idle'],[3,8,'running'],[8,93,'io'],[93,100,'running']],
+        [[0,8,'idle'],[8,14,'running'],[14,89,'io'],[89,94,'running'],[94,100,'idle']],
+        [[0,15,'idle'],[15,21,'running'],[21,83,'io'],[83,89,'running'],[89,100,'idle']],
+        [[0,22,'idle'],[22,80,'running'],[80,100,'idle']]
+      ],
+      caption: 'A clean trace: one trace_id, four spans, strict parent→child nesting. Most of the wall-clock time is teal — network waits — not amber compute. That’s the normal shape for a CRUD path.'
+    },
+    retry: {
+      totalMs: 268,
+      traceId: '864d2e58caeb19669b69d0778a3214c6',
+      spanCount: 8,
+      orphanFrom: null,
+      segs: [
+        [[0,2,'idle'],[2,5,'running'],[5,97,'io'],[97,100,'running']],
+        [[0,6,'idle'],[6,9,'running'],[9,40,'io'],[40,46,'blocked'],[46,50,'running'],[50,88,'io'],[88,93,'running'],[93,100,'idle']],
+        [[0,11,'idle'],[11,63,'running'],[63,67,'idle'],[67,71,'running'],[71,86,'io'],[86,89,'running'],[89,100,'idle']],
+        [[0,72,'idle'],[72,84,'running'],[84,100,'idle']]
+      ],
+      caption: 'orders’ client times out at the coral mark — but payments doesn’t know that and keeps running underneath (drawn sequential here for readability; in production these overlap, which is exactly how a retry doubles real load on a struggling downstream). The retry adds a full second round trip: total latency more than doubles for a request that would have succeeded on its own.'
+    },
+    broken: {
+      totalMs: 122,
+      traceId: 'aae55d3bec9bf7ea8356665855d47e0d',
+      orphanTraceId: '5e23b6a8c3a6169646ee33806c5a13a8',
+      spanCount: '2 + 2, two disconnected traces',
+      orphanFrom: 2,
+      segs: [
+        [[0,3,'idle'],[3,8,'running'],[8,93,'io'],[93,100,'running']],
+        [[0,8,'idle'],[8,14,'running'],[14,89,'io'],[89,94,'running'],[94,100,'idle']],
+        [[0,16,'idle'],[16,22,'running'],[22,84,'io'],[84,90,'running'],[90,100,'idle']],
+        [[0,23,'idle'],[23,81,'running'],[81,100,'idle']]
+      ],
+      caption: 'orders called payments with a bare requests.post() — no traceparent header attached. Payments can’t find a parent, so it mints a brand-new trace_id instead of continuing the caller’s. Latency is unchanged — this bug is invisible in your metrics. In your tracing backend: Gateway→Orders looks like it calls out into nothing, and Payments→Postgres shows up as an orphan trace with no caller.'
+    }
+  };
+
+  let scenario = 'happy';
+  let sampled = true;
+  let currentTotalMs = 118;
+  let playing = false;
+  let rafId = null;
+  let startTs = null;
+  const DURATION = 4200;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const lanesEl = document.getElementById('lanes');
+  const playheadEl = document.getElementById('playhead');
+  const playBtn = document.getElementById('playBtn');
+  const resourceEl = document.getElementById('resourceReadout');
+  const captionEl = document.getElementById('consoleCaption');
+  const sampledToggle = document.getElementById('sampledToggle');
+  const rulerSpans = document.querySelectorAll('#ruler span');
+
+  function statText(sc){
+    if(scenario === 'broken'){
+      let t = `gateway/orders trace ${sc.traceId.slice(0,10)}… · payments/postgres NEW trace ${sc.orphanTraceId.slice(0,10)}… (orphaned) · ${sc.totalMs}ms`;
+      if(!sampled) t += ' · sampled=0';
+      return t;
+    }
+    let t = `trace_id ${sc.traceId.slice(0,12)}… · ${sc.spanCount} spans · ${sc.totalMs}ms total · sampled=${sampled ? 1 : 0}`;
+    return t;
+  }
+
+  function captionText(sc){
+    if(sampled) return sc.caption;
+    return sc.caption + ' With sampled=0, every hop still receives this trace_id and the same decision — they just don’t ship spans to the collector. You’d see nothing for this request in Jaeger even though it happened exactly as drawn.';
+  }
+
+  function render(){
+    const sc = SCEN[scenario];
+    currentTotalMs = sc.totalMs;
+    lanesEl.innerHTML = '';
+
+    sc.segs.forEach((laneSegs, i) => {
+      const lane = document.createElement('div');
+      lane.className = 'lane';
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = (sc.orphanFrom !== null && i >= sc.orphanFrom) ? LANE_LABELS[i] + ' ⚠' : LANE_LABELS[i];
+      const track = document.createElement('div');
+      track.className = 'lane-track';
+      if(sc.orphanFrom !== null && i >= sc.orphanFrom){
+        track.style.borderColor = 'var(--coral)';
+      }
+      laneSegs.forEach(([s,e,st]) => {
+        const d = document.createElement('div');
+        d.className = 'seg ' + S[st];
+        d.style.left = s + '%';
+        d.style.width = (e - s) + '%';
+        if(!sampled) d.style.opacity = '0.32';
+        d.dataset.start = s;
+        d.dataset.end = e;
+        d.dataset.state = S[st];
+        track.appendChild(d);
+      });
+      lane.appendChild(label);
+      lane.appendChild(track);
+      lanesEl.appendChild(lane);
+    });
+
+    rulerSpans.forEach((span, i) => {
+      span.textContent = Math.round(currentTotalMs * (i / 4)) + 'ms';
+    });
+
+    resourceEl.textContent = statText(sc);
+    captionEl.textContent = captionText(sc);
+
+    setPlayheadPercent(0);
+    playBtn.textContent = '▶ Play';
+    playing = false;
+    if(rafId) cancelAnimationFrame(rafId);
+
+    if(reduceMotion){
+      lanesEl.querySelectorAll('.seg').forEach(s => { if(sampled) s.style.opacity = 1; });
+      setPlayheadPercent(100);
+    }
+  }
+
+  function setPlayheadPercent(pct){
+    playheadEl.style.left = pct + '%';
+    playheadEl.dataset.t = Math.round(currentTotalMs * pct / 100) + 'ms';
+    lanesEl.querySelectorAll('.seg').forEach(seg=>{
+      const s = parseFloat(seg.dataset.start), e = parseFloat(seg.dataset.end);
+      seg.classList.toggle('active', pct >= s && pct < e && pct < 100);
+    });
+  }
+
+  function tick(ts){
+    if(startTs === null) startTs = ts;
+    const elapsed = ts - startTs;
+    const pct = Math.min(100, (elapsed / DURATION) * 100);
+    setPlayheadPercent(pct);
+    if(pct < 100){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      playing = false;
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function play(){
+    if(reduceMotion){
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+    startTs = null;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  playBtn.addEventListener('click', () => { if(!playing) play(); });
+
+  document.querySelectorAll('[data-scenario]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-scenario]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      scenario = btn.dataset.scenario;
+      render();
+    });
+  });
+
+  sampledToggle.addEventListener('change', () => {
+    sampled = sampledToggle.checked;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

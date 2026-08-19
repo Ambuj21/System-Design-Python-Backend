@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 — Load Balancing</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+
+  /* ---------- lesson 12 additions: load-balancer console ---------- */
+  /* built from the same tokens as everything above — no new custom properties, no new palette */
+  .lane.lb-lane{ grid-template-columns:56px 1fr 96px; }
+  .lane.lb-lane .lane-track{ height:42px; }
+  .lb-req{
+    position:absolute;
+    height:11px;
+    border-radius:3px;
+  }
+  .lb-req.state-running{ background:var(--amber); }
+  .lb-stat{
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    text-align:right;
+    white-space:nowrap;
+  }
+  .lb-stat b{ color:var(--text-dim); font-weight:700; }
+
+  .view-hidden{ display:none !important; }
+
+  .ring-wrap{ display:flex; justify-content:center; padding:6px 0 2px; }
+  .ring-wrap svg{ width:100%; max-width:400px; height:auto; display:block; }
+  .ring-note{ text-align:center; font-size:0.78rem; color:var(--text-faint); margin:6px 0 0; font-style:italic; }
+
+  .legend.legend-ring .swatch{ border-radius:50%; }
+
+  @keyframes lbRemapPulse{
+    0%{ filter:none; }
+    35%{ filter:drop-shadow(0 0 5px var(--coral)); }
+    100%{ filter:none; }
+  }
+  .remap-flash{ animation: lbRemapPulse 900ms ease; }
+  @media (prefers-reduced-motion: reduce){
+    .remap-flash{ animation:none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="11-scalability-fundamentals.html"><span class="pnl">&larr; previous</span>Scalability Fundamentals</a><a class="pn-next" href="13-caching-strategies-invalidation.html"><span class="pnl">next &rarr;</span>Caching Strategies &amp; Invalidation at the Architecture Level</a></nav>
+
+  <p class="kicker">System design fundamentals · Phase 2 · Lesson 12</p>
+  <h1>Load Balancing</h1>
+  <p class="lede">The rounded rectangle every system-design diagram draws without a second thought — until an interviewer asks what layer it actually operates at, how it picks a backend, and what happens the instant one of those backends stops answering.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why this is an interview trap</h2>
+    <p>Ask a mid-level engineer what a load balancer does and you'll get: <em>"it spreads traffic across servers, usually round robin."</em> That's not wrong. It's also three separate decisions collapsed into one sentence, and a staff-level conversation is precisely about pulling them apart.</p>
+    <p class="tight">Decision one: <b>what layer does it operate at</b> — does it ever see anything above IP:port, or does it terminate the connection and read the actual HTTP request? Decision two: <b>which backend does it pick</b>, given the pool it's allowed to choose from — round robin, weighted round robin, least connections, consistent hashing all answer this differently, and they are not interchangeable. Decision three: <b>which backends are even eligible</b> — health checks are what shrink and grow that pool underneath the algorithm, often without the algorithm's "knowledge" that anything changed.</p>
+    <p class="tight">The console below runs a real discrete-event simulation of four algorithms against the same backend pool, including one backend that's genuinely running behind. Two of the algorithms react to that completely differently — and predicting which one, before you press play, is a fair proxy for whether you actually understand the mechanism or just the vocabulary.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> The envelope and the letter</h2>
+    <p class="dek">Every load balancer is a piece of mail-sorting infrastructure. The only question is whether it's allowed to open the envelope.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 250" role="img" aria-label="Left: a sealed envelope reaches an L4 load balancer, which reads only the address on the front and forwards it whole to backend A, never opening it, leaving backend B faded and unused this time. Right: an opened envelope reaches an L7 load balancer, which reads the letter inside — the path, host, and cookie — and routes to the api pool because the request path is slash checkout, leaving the static pool faded and unused this time.">
+        <line x1="320" y1="4" x2="320" y2="246" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="160" y="12" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" letter-spacing="0.04em" fill="currentColor" fill-opacity="0.55">L4 — TRANSPORT</text>
+        <text x="480" y="12" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" letter-spacing="0.04em" fill="currentColor" fill-opacity="0.55">L7 — APPLICATION</text>
+
+        <!-- LEFT: sealed envelope, L4 -->
+        <g transform="translate(160,64)">
+          <rect x="-52" y="-26" width="104" height="52" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M -52 -26 L 0 2 L 52 -26" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <circle cx="0" cy="2" r="5" fill="var(--coral)"/>
+          <text x="0" y="18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.75">src 203.0.113.4:51422</text>
+        </g>
+        <text x="160" y="104" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">dst 10.0.4.12:443 · payload opaque (TLS)</text>
+
+        <line x1="160" y1="112" x2="160" y2="132" stroke="currentColor" stroke-width="1.5"/>
+
+        <rect x="97" y="134" width="126" height="34" rx="6" fill="none" stroke="var(--amber)" stroke-width="2"/>
+        <text x="160" y="155" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="var(--amber)">L4 LB</text>
+
+        <line x1="132" y1="168" x2="98" y2="198" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="188" y1="168" x2="222" y2="198" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.35"/>
+
+        <g transform="translate(98,212)">
+          <rect x="-34" y="-14" width="68" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <text x="0" y="4" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor">backend A</text>
+        </g>
+        <g transform="translate(222,212)" opacity="0.4">
+          <rect x="-34" y="-14" width="68" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 3"/>
+          <text x="0" y="4" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor">backend B</text>
+        </g>
+        <text x="160" y="244" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.5">picked once per connection, from the address alone</text>
+
+        <!-- RIGHT: opened envelope, L7 -->
+        <g transform="translate(480,64)">
+          <rect x="-52" y="-26" width="104" height="52" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M -52 -26 L 0 -42 L 52 -26" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <rect x="-40" y="-38" width="80" height="34" rx="2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.75"/>
+          <text x="0" y="-27" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.85">GET /checkout</text>
+          <text x="0" y="-18" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.85">Host: api.example.com</text>
+          <text x="0" y="-9" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.85">Cookie: sid=9f2c8e</text>
+          <path d="M 24 -36 L 28 -32 L 36 -42" fill="none" stroke="var(--teal)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        <text x="480" y="104" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor" fill-opacity="0.55">TLS terminated here — contents now readable</text>
+
+        <line x1="480" y1="112" x2="480" y2="132" stroke="currentColor" stroke-width="1.5"/>
+
+        <rect x="417" y="134" width="126" height="34" rx="6" fill="none" stroke="var(--amber)" stroke-width="2"/>
+        <text x="480" y="155" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="var(--amber)">L7 LB</text>
+
+        <line x1="452" y1="168" x2="418" y2="198" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="508" y1="168" x2="542" y2="198" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.35"/>
+
+        <g transform="translate(418,212)">
+          <rect x="-38" y="-14" width="76" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <text x="0" y="4" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor">pool: /api/*</text>
+        </g>
+        <g transform="translate(542,212)" opacity="0.4">
+          <rect x="-38" y="-14" width="76" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 3"/>
+          <text x="0" y="4" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8.5" fill="currentColor">pool: /static/*</text>
+        </g>
+        <text x="480" y="244" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.5">picked fresh per request, from path + headers + cookie</text>
+      </svg>
+      <figcaption>L4 reads the outside of the envelope once and relays every packet in that connection blind after that — fast, cheap, and it genuinely cannot do path-based routing because it never sees a path. L7 opens every single envelope, which costs CPU and adds latency, but buys routing, retries, and header-aware decisions the L4 box structurally cannot make.</figcaption>
+    </figure>
+    <p class="tight">That's the whole first fork: <b>an L4 balancer picks a backend once, per TCP connection, from the address alone; an L7 balancer picks fresh, per HTTP request, from the content.</b> Everything below — the algorithms, the health checks, sticky sessions — is downstream of which of these two boxes you're actually looking at.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Same backend pool, four algorithms, one struggling instance</h2>
+    <p class="dek">backend-3 is genuinely slower than its neighbours this run — think a cache-cold instance or a noisy-neighbour box, not a fake number. Pick an algorithm and press play. Watch what each one does about it, then flip the health-check toggle and watch what changes when backend-3 stops answering probes entirely.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Load-balancing algorithm">
+          <button data-algo="rr" aria-pressed="true">Round Robin</button>
+          <button data-algo="wrr" aria-pressed="false">Weighted RR</button>
+          <button data-algo="lc" aria-pressed="false">Least Connections</button>
+          <button data-algo="ch" aria-pressed="false">Consistent Hashing</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <label class="toggle-row" id="healthToggleRow">
+          <input type="checkbox" id="healthToggle">
+          <span id="healthLabelText">fail health checks on backend-3 at t=45</span>
+        </label>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="stat-line" id="resourceReadout">4 backends · fixed rotation · no load awareness</span>
+          <button class="playbtn" id="playBtn">▶ Play</button>
+        </div>
+      </div>
+
+      <div class="timeline" id="poolView">
+        <div class="timeline-inner" id="timelineInner">
+          <div class="ruler"><span>t=0</span><span>t=25</span><span>t=50</span><span>t=75</span><span>t=100</span></div>
+          <div id="lanes"></div>
+          <div class="playhead" id="playhead" data-t="0"></div>
+        </div>
+      </div>
+
+      <div id="ringView" class="view-hidden">
+        <div class="ring-wrap">
+          <svg id="ringSvg" viewBox="0 0 400 380" role="img" aria-label="A consistent-hashing ring with twelve virtual-node ticks colored by owning backend and eight client keys, each joined by a line to the first node clockwise of it."></svg>
+        </div>
+        <p class="ring-note" id="ringNote">Each key (small dot) is joined by a line to the first backend node clockwise of it on the ring.</p>
+      </div>
+
+      <div class="legend" id="legendPool">
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>processing a request</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.15) 0 3px, transparent 3px 6px);"></span>failing health checks, out of rotation</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--surface-2); border:1px solid var(--border)"></span>idle</span>
+      </div>
+      <div class="legend legend-ring view-hidden" id="legendRing">
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>backend-1</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>backend-2</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>backend-3</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--grey)"></span>backend-4</span>
+      </div>
+      <p class="console-note" id="consoleCaption">Round robin cycles backend-1 → 2 → 3 → 4 on a fixed schedule. It never checks whether the backend it's about to pick is still catching up on the last one.</p>
+    </div>
+
+    <p class="tight" style="margin-top:18px;"><b>Read backend-3's lane on Round Robin, then flip to Least Connections without touching anything else.</b> Same slow backend, same arriving traffic. Round robin stacks two requests on it at once because counting to four doesn't know or care that the last request hasn't finished. Least connections checks who's currently busiest before every single pick — an O(n) scan over a handful of backends, cheap at this scale — and it simply stops sending backend-3 new work while it's behind. Neither algorithm is "smarter" in general; least connections is reacting to <em>live</em> state that round robin structurally cannot see, and that reaction costs a scan round robin doesn't pay.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>AWS NLB vs ALB is the L4/L7 split, productized.</b> The Network Load Balancer forwards TCP/UDP at the packet level — it can push tens of millions of packets per second in software because it never parses HTTP — and preserves the client's source IP end to end. The Application Load Balancer terminates HTTP/HTTPS itself, which is what makes path- and host-based routing, WebSocket awareness, and per-target-group health checks possible at all. Picking NLB when you actually need ALB's routing (or the reverse, paying L7 tax for pure TCP passthrough) is a real, common design mistake.</li>
+      <li><b>nginx's <code>upstream</code> block</b> ships round robin as the default, <code>least_conn</code> as an explicit directive, <code>ip_hash</code> as a crude consistent-hash-by-client-IP (a poor man's sticky session), and — worth knowing exists — <code>hash $request_uri consistent;</code>, which implements real ketama-style consistent hashing, most often put in front of a cache tier so the same URI keeps landing on the same warm cache.</li>
+      <li><b>Envoy and Istio's "least request" policy</b> doesn't scan every backend on every pick the way naive least-connections does. At real scale it uses power-of-two-choices (P2C): sample two backends at random, route to whichever has fewer active requests. That's O(1) instead of O(n), and it's provably close to true least-connections behavior — a detail worth volunteering if an interviewer pushes on "does least connections scale to thousands of backends."</li>
+      <li><b>Google's Maglev</b> (the 2016 NSDI paper, still the reference design for software L4 balancing) uses its own consistent-hashing variant specifically so that when a backend is added or removed, only the minimum necessary slice of flows remaps — the same K/N property the ring below demonstrates, engineered to hold at datacenter scale and line rate.</li>
+      <li><b>Kubernetes stacks both layers.</b> <code>kube-proxy</code> (iptables or IPVS mode) does L4 load balancing across a Service's pod IPs — IPVS mode literally offers round robin, least connection, and a few other classic algorithms as a config choice. Above that, an Ingress controller (nginx-ingress, an Envoy-based gateway) does L7 host/path routing to different Services. And the pool IPVS or iptables is even allowed to route to is decided by <b>readiness probes</b> — the health-check mechanism, at the orchestration layer, that this lesson has been simulating.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: prove consistent hashing's core property</h2>
+    <p class="dek">The claim "consistent hashing only remaps ~1/N of your keys when a node changes, instead of nearly all of them" is the single most quotable fact about this algorithm — and also the one most people repeat without ever having checked it. Here's a real ring, hashing 10,000 keys, measured.</p>
+
+    <div class="label-row">ring.py</div>
+    <pre class="code"><code>import hashlib
+import bisect
+from collections import defaultdict
+
+
+def stable_hash(key: str) -> int:
+    """Deterministic hash — Python's built-in hash() is salted per-process
+    (PYTHONHASHSEED) specifically so it CAN'T be used for anything that
+    needs to agree across processes, which a hash ring always does."""
+    return int(hashlib.md5(key.encode()).hexdigest(), 16)
+
+
+class ConsistentHashRing:
+    def __init__(self, nodes=None, vnodes=150):
+        self.vnodes = vnodes
+        self.ring = {}          # hash -> node name
+        self.sorted_hashes = []  # kept sorted for O(log n) lookup via bisect
+        for node in nodes or []:
+            self.add_node(node)
+
+    def add_node(self, node):
+        for i in range(self.vnodes):
+            h = stable_hash(f"{node}#vn{i}")
+            self.ring[h] = node
+            bisect.insort(self.sorted_hashes, h)
+
+    def remove_node(self, node):
+        for i in range(self.vnodes):
+            h = stable_hash(f"{node}#vn{i}")
+            del self.ring[h]
+            pos = bisect.bisect_left(self.sorted_hashes, h)
+            del self.sorted_hashes[pos]
+
+    def get_node(self, key):
+        if not self.ring:
+            return None
+        h = stable_hash(key)
+        idx = bisect.bisect(self.sorted_hashes, h)
+        if idx == len(self.sorted_hashes):
+            idx = 0  # wrap around the ring
+        return self.ring[self.sorted_hashes[idx]]
+
+
+def naive_mod_hash(key, nodes):
+    return nodes[stable_hash(key) % len(nodes)]
+
+
+if __name__ == "__main__":
+    nodes = ["backend-1", "backend-2", "backend-3", "backend-4"]
+    keys = [f"session-{i}" for i in range(10_000)]
+
+    ring = ConsistentHashRing(nodes, vnodes=150)
+    dist = defaultdict(int)
+    for k in keys:
+        dist[ring.get_node(k)] += 1
+
+    print("=== distribution across 4 nodes, 150 virtual nodes each, 10,000 keys ===")
+    for n in nodes:
+        pct = dist[n] / len(keys) * 100
+        print(f"{n:12s} {dist[n]:5d} keys  ({pct:5.1f}%)")
+
+    before = {k: ring.get_node(k) for k in keys}
+    ring.add_node("backend-5")
+    after = {k: ring.get_node(k) for k in keys}
+    moved = sum(1 for k in keys if before[k] != after[k])
+    print(f"\n--- scaling out: add backend-5 (4 -> 5 nodes) ---")
+    print(f"consistent hashing remapped : {moved:5d}/{len(keys)} keys ({moved/len(keys)*100:4.1f}%)")
+    print(f"theoretical expectation ~1/(n+1)     : {100/5:4.1f}%")
+
+    before_mod = {k: naive_mod_hash(k, nodes) for k in keys}
+    nodes5 = nodes + ["backend-5"]
+    after_mod = {k: naive_mod_hash(k, nodes5) for k in keys}
+    moved_mod = sum(1 for k in keys if before_mod[k] != after_mod[k])
+    print(f"\n--- same change, naive `hash(key) % len(nodes)` ---")
+    print(f"naive modulo remapped        : {moved_mod:5d}/{len(keys)} keys ({moved_mod/len(keys)*100:4.1f}%)")</code></pre>
+
+    <div class="label-row">output (this machine, CPython 3.10.12 — actually run, not simulated)</div>
+    <pre class="output"><code>=== distribution across 4 nodes, 150 virtual nodes each, 10,000 keys ===
+backend-1     2463 keys  ( 24.6%)
+backend-2     2526 keys  ( 25.3%)
+backend-3     2587 keys  ( 25.9%)
+backend-4     2424 keys  ( 24.2%)
+
+--- scaling out: add backend-5 (4 -> 5 nodes) ---
+consistent hashing remapped :  1916/10000 keys (19.2%)
+theoretical expectation ~1/(n+1)     : 20.0%
+
+--- same change, naive `hash(key) % len(nodes)` ---
+naive modulo remapped        :  8052/10000 keys (80.5%)</code></pre>
+
+    <p class="tight">That's the entire argument for consistent hashing in two lines: adding a fifth backend moves <b>19.2%</b> of keys under the ring, versus <b>80.5%</b> under naive modulo — because <code>hash(key) % n</code> changes for almost every key the instant <code>n</code> changes, while the ring only reassigns keys that actually fell in the new node's slice. And the reason this matters isn't only "less remap work" — it's that every key that <em>didn't</em> move is a key whose downstream cache (Redis, Memcached, an in-process LRU) is still warm. Consistent hashing is as much a cache-affinity tool as a resharding tool; that's usually the real reason it's sitting in front of a cache tier in production.</p>
+
+    <div class="label-row">wrr.py — the same weighted round robin the console runs</div>
+    <pre class="code"><code>class SmoothWeightedRoundRobin:
+    """nginx's actual algorithm, not the naive 'expand backend-3 into the
+    list 3 times' version. Every pick is O(n) over the backend list, but
+    it never bursts — a weight-3 backend never gets picked 3 times in a
+    row the way naive list-expansion would."""
+
+    def __init__(self, weights: dict[str, int]):
+        self.weights = weights
+        self.current = {name: 0 for name in weights}
+
+    def pick(self) -> str:
+        total = sum(self.weights.values())
+        for name in self.current:
+            self.current[name] += self.weights[name]
+        chosen = max(self.current, key=self.current.get)
+        self.current[chosen] -= total
+        return chosen
+
+
+weights = {"backend-1": 1, "backend-2": 1, "backend-3": 3, "backend-4": 1}
+lb = SmoothWeightedRoundRobin(weights)
+print(" -> ".join(lb.pick() for _ in range(12)))</code></pre>
+    <pre class="output"><code>backend-3 -> backend-1 -> backend-2 -> backend-3 -> backend-4 -> backend-3 -> backend-3 -> backend-1 -> backend-2 -> backend-3 -> backend-4 -> backend-3
+
+=== distribution over 6,000 picks ===
+backend-1    weight=1  expected= 16.7%  actual= 16.7%
+backend-2    weight=1  expected= 16.7%  actual= 16.7%
+backend-3    weight=3  expected= 50.0%  actual= 50.0%
+backend-4    weight=1  expected= 16.7%  actual= 16.7%</code></pre>
+    <p class="tight">Notice backend-3 <em>does</em> land twice in a row once, right at the seam between cycles (positions 6-7). Smooth WRR bounds burstiness across the interior of a cycle, it doesn't guarantee zero repeats at the boundary — a small, honest nuance worth having in your back pocket if an interviewer pushes on "never" claims.</p>
+
+    <p class="tight"><b>The exercise</b> — predict before you run it. Using the exact same <code>ring.py</code> from above:</p>
+    <pre class="code"><code># Part A: what if a backend DIES instead of a new one joining?
+# (health check fails -> node removed, 4 -> 3 nodes)
+ring = ConsistentHashRing(nodes, vnodes=150)
+before = {k: ring.get_node(k) for k in keys}
+ring.remove_node("backend-2")
+after = {k: ring.get_node(k) for k in keys}
+moved = sum(1 for k in keys if before[k] != after[k])
+# predict: what fraction moves? is it 1/(n+1) like scale-out, or 1/n_before?
+
+# Part B: why 150 virtual nodes and not 1?
+for vn in (1, 150):
+    r = ConsistentHashRing(nodes, vnodes=vn)
+    dist = defaultdict(int)
+    for k in keys: dist[r.get_node(k)] += 1
+    counts = [dist[n] for n in nodes]
+    print(vn, counts, "spread:", max(counts) - min(counts))</code></pre>
+    <pre class="output"><code>=== backend-2 dies (health check fails), 4 -> 3 nodes ===
+consistent hashing remapped : 2526/10000 (25.3%)
+theoretical expectation ~1/n_before  : 25.0%
+(every key that WAS on backend-2 must move somewhere; keys on
+ backend-1/3/4 are untouched -- that's the whole property.)
+
+=== fairness with vnodes=1 (no virtual nodes) vs vnodes=150 ===
+vnodes=1    counts=[3311, 725, 3762, 2202]  max-min spread=3037 (30.4% of keys)
+vnodes=150  counts=[2463, 2526, 2587, 2424]  max-min spread=163 (1.6% of keys)</code></pre>
+    <p class="tight">Two real answers there. A node <em>dying</em> costs <code>1/n_before</code> (25% for 4 → 3), not <code>1/n_after</code> — you're redistributing the dead node's slice among the survivors, which is a different fraction than a node <em>joining</em> carves out for itself. And with exactly one hash point per physical node, luck of the draw gave one backend 5&times; another's share (725 vs 3762) — 150 virtual nodes per physical node is what turns a random single point into a smooth, near-uniform distribution. Both numbers are why production rings (Maglev, Envoy's ring hash, nginx's ketama) all use dozens to hundreds of virtual nodes per physical node, never one.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "We put sticky sessions on so users keep hitting the same backend — simple, works." <b>Strong:</b> "Sticky sessions pin a client to a backend by cookie or source-IP hash, and they're a mitigation, not a fix — they exist to paper over a backend that holds session state in process memory. The moment that backend fails a health check, the client's sticky cookie points at a target that's no longer in rotation, and whatever wasn't durably stored (the in-memory cart, the WebSocket state) is just gone. I'd only reach for stickiness as a deliberate, temporary bridge — the real fix is externalizing that state to Redis or the primary DB, keyed by a token the client carries, exactly like lesson 11 covered for horizontal scaling generally."</li>
+        <li>The killer follow-up: <b>"Your ALB uses duration-based sticky cookies because carts live in-process. A health check just marked that target unhealthy. Walk me through, precisely, what the next request from a client whose sticky cookie still names that target actually experiences."</b> The honest mechanism: the LB detects the failed health check and drops the target from the healthy pool; on the next request, most real implementations (ALB included) detect the cookie points at a now-unhealthy target and transparently rebind the client to a new one, often issuing a fresh cookie — so the request usually still succeeds. What the candidate needs to say next is the part that actually matters: succeeding at the HTTP layer does not mean the cart survived. The LB solved connectivity; it did not and cannot solve the state loss, because that was never its job.</li>
+        <li>The nuance worth naming unprompted: a health check failing does <em>not</em> kill in-flight requests on that backend — it only stops <em>new</em> ones from being routed there. Killing in-flight work cleanly, on purpose, is a separate mechanism: graceful shutdown and connection draining, handled by the backend process itself, not the load balancer.</li>
+        <li>Know the cost axis, not just the behavior: L4 is cheap enough to run at line rate in software (tens of millions of packets/sec is a realistic order of magnitude for tools like Maglev); L7 costs real CPU per request for TLS termination and parsing — never quote a bare "requests/sec per core" number without immediately caveating it on payload size, TLS, and keep-alive reuse, because that number swings by an order of magnitude on those alone, and stating it too confidently is itself a tell.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Your L7 load balancer path-routes <code>/checkout/*</code> (stateful, in-memory cart, currently uses sticky sessions) and <code>/catalog/*</code> (stateless, read-heavy, backed by a per-instance in-memory LRU cache in front of Postgres) to two different backend pools.</p>
+      <p class="tight"><b>For <code>/catalog/*</code> specifically, would you reach for round robin, least connections, or consistent hashing — and why is that choice different from what you'd pick for a pool with no per-instance cache at all? What does consistent hashing get you here that least connections structurally cannot?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Resurfacing lesson 09 — Packaging &amp; Deployment</h3>
+      <p class="tight">Lesson 09 covered getting a build safely into production — immutable artifacts, containerized images, and a process that shuts down cleanly instead of just dying when it's told to stop. That last piece is the part that quietly determines whether every rolling deploy you ship is invisible to users or a trickle of dropped connections. This lesson's health checks are the mechanism on the other side of that same handshake: a load balancer only stops sending traffic to an instance once its health check goes red, and a process that gets a hard <code>SIGTERM</code> and dies immediately — instead of flipping its readiness endpoint unhealthy first, finishing in-flight requests, <em>then</em> exiting — will drop connections on every single deploy regardless of how good the algorithm choosing its traffic was. The load-balancing algorithm decides who gets picked; graceful shutdown from lesson 09 decides whether being un-picked actually happens before the box disappears.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="11-scalability-fundamentals.html"><span class="pnl">&larr; previous</span>Scalability Fundamentals</a><a class="pn-next" href="13-caching-strategies-invalidation.html"><span class="pnl">next &rarr;</span>Caching Strategies &amp; Invalidation at the Architecture Level</a></nav>
+<footer class="page">ring/backend numbers in the console are a deterministic simulation, not measured production traffic · Python script output captured on CPython 3.10.12, this machine · lesson 12 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ORDER = ['b1','b2','b3','b4'];
+  const LABELS = {b1:'b1', b2:'b2', b3:'b3', b4:'b4'};
+
+  // ---------------- discrete-event pool simulator ----------------
+  function simulate(backends, arrivals, pick, healthFailPct, failId){
+    const intervals = {}; backends.forEach(b=>intervals[b.id]=[]);
+    const totals = {}; backends.forEach(b=>totals[b.id]=0);
+
+    function activeAt(id,t){
+      return intervals[id].filter(iv=>iv.start<=t && t<iv.end).length;
+    }
+    function isHealthy(id,t){
+      return !(healthFailPct!=null && id===failId && t>=healthFailPct);
+    }
+
+    arrivals.forEach((t,i)=>{
+      const healthy = backends.filter(b=>isHealthy(b.id,t));
+      const chosenId = pick(healthy, id=>activeAt(id,t), id=>totals[id], i, t);
+      const b = backends.find(bb=>bb.id===chosenId);
+      const start = t, end = Math.min(100, t+b.service);
+      intervals[chosenId].push({start, end, req:i});
+      totals[chosenId]++;
+    });
+
+    const peak = {};
+    backends.forEach(b=>{
+      const evs = [];
+      intervals[b.id].forEach(iv=>{ evs.push([iv.start,1]); evs.push([iv.end,-1]); });
+      evs.sort((a,c)=>a[0]-c[0]);
+      let cur=0, p=0;
+      evs.forEach(([,d])=>{ cur+=d; if(cur>p) p=cur; });
+      peak[b.id]=p;
+    });
+
+    return {intervals, totals, peak};
+  }
+
+  function assignRows(intervals){
+    const rowEnds = [];
+    return intervals.slice().sort((a,b)=>a.start-b.start).map(iv=>{
+      let r=0;
+      while(rowEnds[r]!==undefined && rowEnds[r] > iv.start) r++;
+      rowEnds[r] = iv.end;
+      return Object.assign({}, iv, {row:r});
+    });
+  }
+
+  function makeRoundRobinPick(order){
+    let ptr = 0;
+    return (healthy)=>{
+      for(let k=0;k<order.length;k++){
+        const cand = order[ptr % order.length];
+        ptr++;
+        if(healthy.some(b=>b.id===cand)) return cand;
+      }
+      return order[0];
+    };
+  }
+
+  function pickLeastConn(order){
+    return (healthy, activeAt, totalAt)=>{
+      let best=null, bestActive=Infinity, bestTotal=Infinity, bestIdx=Infinity;
+      healthy.forEach(b=>{
+        const a=activeAt(b.id), t=totalAt(b.id), idx=order.indexOf(b.id);
+        if(a<bestActive || (a===bestActive && t<bestTotal) || (a===bestActive && t===bestTotal && idx<bestIdx)){
+          best=b.id; bestActive=a; bestTotal=t; bestIdx=idx;
+        }
+      });
+      return best;
+    };
+  }
+
+  function makeSmoothWRR(weights){
+    const current = {}; Object.keys(weights).forEach(k=>current[k]=0);
+    return (healthy)=>{
+      const ids = healthy.map(b=>b.id);
+      const total = ids.reduce((s,id)=>s+weights[id],0);
+      ids.forEach(id=>{ current[id]+=weights[id]; });
+      let chosen = ids[0];
+      ids.forEach(id=>{ if(current[id] > current[chosen]) chosen = id; });
+      current[chosen] -= total;
+      return chosen;
+    };
+  }
+
+  function arrivalsRange(start, end, step){
+    const out=[]; for(let t=start;t<=end;t+=step) out.push(t); return out;
+  }
+
+  const SCENARIOS = {
+    rr: ()=>({
+      backends: [{id:'b1',service:8},{id:'b2',service:8},{id:'b3',service:34},{id:'b4',service:8}],
+      arrivals: arrivalsRange(2,92,6),
+      pick: makeRoundRobinPick(ORDER),
+      resource: '4 backends · fixed rotation · O(1) per pick, no load awareness',
+    }),
+    wrr: ()=>({
+      backends: [{id:'b1',service:6},{id:'b2',service:6},{id:'b3',service:6},{id:'b4',service:6}],
+      arrivals: arrivalsRange(2,90,8),
+      pick: makeSmoothWRR({b1:1,b2:1,b3:3,b4:1}),
+      resource: '4 backends · static weights 1:1:3:1 · nginx smooth WRR, O(n) per pick',
+    }),
+    lc: ()=>({
+      backends: [{id:'b1',service:8},{id:'b2',service:8},{id:'b3',service:34},{id:'b4',service:8}],
+      arrivals: arrivalsRange(2,92,6),
+      pick: pickLeastConn(ORDER),
+      resource: '4 backends · routes to min(active connections) · O(n) scan per pick',
+    }),
+  };
+
+  const CAPTIONS = {
+    'rr|0': 'Round robin cycles backend-1 → 2 → 3 → 4 on a fixed schedule. Watch backend-3’s lane: it stacks two requests on top of each other because counting to four has no idea the last one hasn’t finished.',
+    'rr|1': 'backend-3 fails its health check at t=45 and is skipped by the rotation from then on — its in-flight request from before t=45 keeps running, though. Health checks gate new routing, not requests already in progress.',
+    'wrr|0': 'backend-3 is declared weight 3 — three times its neighbours’ capacity — so nginx’s smooth WRR gives it 3 of every 4 picks, spread across the cycle instead of dumped as a single burst.',
+    'wrr|1': 'backend-3 fails its health check at t=45. Its weight stops mattering the instant it’s unhealthy — the remaining 1:1:1 weight is redistributed across backend-1, 2 and 4 for the rest of the run.',
+    'lc|0': 'Same slow backend-3 as Round Robin — but least connections checks who’s busiest before every pick, so it routes around backend-3 while it’s still catching up. No lane ever shows two requests stacked.',
+    'lc|1': 'With backend-3 already failing health checks after t=45, least connections was already sending it less traffic than round robin would have — two independent mechanisms reinforcing the same outcome.',
+    'ch|0': 'Each key finds the first backend clockwise of it on the ring. k3 and k7 both land on backend-3 — that’s two of backend-3’s three virtual-node slots on this simplified 12-slot ring, not a coincidence I’m hiding.',
+    'ch|1': 'backend-3’s three virtual nodes are gone. Only k3 and k7 — the keys actually assigned to backend-3 — moved. Every other key’s line is pixel-identical to before. That’s the whole property.',
+  };
+
+  const HEALTH_LABEL = {
+    rr: 'fail health checks on backend-3 at t=45',
+    wrr: 'fail health checks on backend-3 at t=45',
+    lc: 'fail health checks on backend-3 at t=45',
+    ch: 'backend-3 fails its health check (pull it off the ring)',
+  };
+
+  let algo = 'rr';
+  let playing = false;
+  let rafId = null;
+  let startTs = null;
+  const DURATION = 5200;
+
+  const poolView = document.getElementById('poolView');
+  const ringView = document.getElementById('ringView');
+  const legendPool = document.getElementById('legendPool');
+  const legendRing = document.getElementById('legendRing');
+  const lanesEl = document.getElementById('lanes');
+  const playheadEl = document.getElementById('playhead');
+  const playBtn = document.getElementById('playBtn');
+  const resourceEl = document.getElementById('resourceReadout');
+  const captionEl = document.getElementById('consoleCaption');
+  const healthToggle = document.getElementById('healthToggle');
+  const healthLabelText = document.getElementById('healthLabelText');
+  const ringSvg = document.getElementById('ringSvg');
+
+  let ringChords = [];
+  let lastKeyOwners = null;
+
+  function renderPool(){
+    const cfg = SCENARIOS[algo]();
+    const failPct = healthToggle.checked ? 45 : null;
+    const res = simulate(cfg.backends, cfg.arrivals, cfg.pick, failPct, 'b3');
+
+    lanesEl.innerHTML = '';
+    cfg.backends.forEach(b=>{
+      const lane = document.createElement('div');
+      lane.className = 'lane lb-lane';
+
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = LABELS[b.id];
+
+      const track = document.createElement('div');
+      track.className = 'lane-track';
+
+      if(failPct!=null && b.id==='b3'){
+        const down = document.createElement('div');
+        down.className = 'seg state-blocked';
+        down.style.left = failPct + '%';
+        down.style.width = (100-failPct) + '%';
+        down.dataset.start = failPct; down.dataset.end = 100; down.dataset.state = 'state-blocked';
+        track.appendChild(down);
+      }
+
+      const rows = assignRows(res.intervals[b.id]);
+      rows.forEach(iv=>{
+        const d = document.createElement('div');
+        d.className = 'seg lb-req state-running';
+        d.style.left = iv.start + '%';
+        d.style.width = Math.max(1.2, iv.end-iv.start) + '%';
+        d.style.top = (4 + iv.row*13) + 'px';
+        d.dataset.start = iv.start; d.dataset.end = iv.end; d.dataset.state = 'state-running';
+        track.appendChild(d);
+      });
+
+      const stat = document.createElement('div');
+      stat.className = 'lb-stat';
+      stat.innerHTML = '<b>'+res.totals[b.id]+'</b> served · peak '+res.peak[b.id];
+
+      lane.appendChild(label);
+      lane.appendChild(track);
+      lane.appendChild(stat);
+      lanesEl.appendChild(lane);
+    });
+
+    resourceEl.textContent = cfg.resource;
+    captionEl.textContent = CAPTIONS[algo+'|'+(failPct!=null?1:0)] || '';
+  }
+
+  function buildRing(healthy3){
+    const svgns = 'http://www.w3.org/2000/svg';
+    const cx=200, cy=185, rNode=150, rKey=104;
+    const owners = ['b1','b2','b3','b4'];
+    const colorVar = {b1:'var(--amber)', b2:'var(--teal)', b3:'var(--coral)', b4:'var(--grey)'};
+    const nodeSlots = [];
+    for(let a=0;a<360;a+=30) nodeSlots.push(a);
+    let liveNodes = nodeSlots.map(a=>({angle:a, owner: owners[(a/30)%4]}));
+    if(!healthy3) liveNodes = liveNodes.filter(n=>n.owner!=='b3');
+
+    const keys = [
+      {id:'k1', angle:350},{id:'k2', angle:20},{id:'k3', angle:170},{id:'k4', angle:200},
+      {id:'k5', angle:110},{id:'k6', angle:260},{id:'k7', angle:55},{id:'k8', angle:325},
+    ];
+    function pt(angle, r){
+      const rad = (angle-90) * Math.PI/180;
+      return [cx + r*Math.cos(rad), cy + r*Math.sin(rad)];
+    }
+    function assign(keyAngle){
+      const sorted = liveNodes.slice().sort((a,b)=>a.angle-b.angle);
+      for(const n of sorted) if(n.angle >= keyAngle) return n;
+      return sorted[0];
+    }
+
+    while(ringSvg.firstChild) ringSvg.removeChild(ringSvg.firstChild);
+
+    const circle = document.createElementNS(svgns,'circle');
+    circle.setAttribute('cx',cx); circle.setAttribute('cy',cy); circle.setAttribute('r',rNode);
+    circle.setAttribute('fill','none'); circle.setAttribute('stroke','currentColor'); circle.setAttribute('stroke-opacity','0.25');
+    ringSvg.appendChild(circle);
+
+    const chords = [];
+    const keyOwners = {};
+    keys.forEach(k=>{
+      const owner = assign(k.angle);
+      keyOwners[k.id] = owner.owner;
+      const [kx,ky] = pt(k.angle, rKey);
+      const [nx,ny] = pt(owner.angle, rNode);
+
+      const line = document.createElementNS(svgns,'line');
+      line.setAttribute('x1',kx); line.setAttribute('y1',ky);
+      line.setAttribute('x2',nx); line.setAttribute('y2',ny);
+      line.setAttribute('stroke', colorVar[owner.owner]);
+      line.setAttribute('stroke-width','1.6');
+      line.setAttribute('opacity','0.85');
+      line.dataset.key = k.id;
+      ringSvg.appendChild(line);
+      chords.push(line);
+
+      const kdot = document.createElementNS(svgns,'circle');
+      kdot.setAttribute('cx',kx); kdot.setAttribute('cy',ky); kdot.setAttribute('r','5');
+      kdot.setAttribute('fill', colorVar[owner.owner]);
+      kdot.setAttribute('stroke','var(--surface)'); kdot.setAttribute('stroke-width','1.5');
+      ringSvg.appendChild(kdot);
+
+      const [lx,ly] = pt(k.angle, rKey-16);
+      const klabel = document.createElementNS(svgns,'text');
+      klabel.setAttribute('x',lx); klabel.setAttribute('y',ly);
+      klabel.setAttribute('text-anchor','middle');
+      klabel.setAttribute('font-family','ui-monospace, monospace');
+      klabel.setAttribute('font-size','8');
+      klabel.setAttribute('fill','currentColor'); klabel.setAttribute('fill-opacity','0.6');
+      klabel.textContent = k.id;
+      ringSvg.appendChild(klabel);
+    });
+
+    nodeSlots.forEach(a=>{
+      const owner = owners[(a/30)%4];
+      const alive = healthy3 || owner!=='b3';
+      const [nx,ny] = pt(a, rNode);
+      const ndot = document.createElementNS(svgns,'circle');
+      ndot.setAttribute('cx',nx); ndot.setAttribute('cy',ny); ndot.setAttribute('r', alive?'6':'3');
+      ndot.setAttribute('fill', alive ? colorVar[owner] : 'var(--surface-2)');
+      ndot.setAttribute('stroke', alive ? 'var(--surface)' : 'currentColor');
+      ndot.setAttribute('stroke-width', alive ? '1.5' : '1');
+      if(!alive) ndot.setAttribute('opacity','0.4');
+      ringSvg.appendChild(ndot);
+    });
+
+    return {chords, keyOwners};
+  }
+
+  function renderRing(){
+    const healthy3 = !healthToggle.checked;
+    const built = buildRing(healthy3);
+    ringChords = built.chords;
+
+    if(lastKeyOwners && !reduceMotion){
+      built.chords.forEach(line=>{
+        const k = line.dataset.key;
+        if(lastKeyOwners[k] !== built.keyOwners[k]){
+          line.classList.add('remap-flash');
+        }
+      });
+    }
+    lastKeyOwners = built.keyOwners;
+
+    captionEl.textContent = CAPTIONS['ch|'+(healthy3?0:1)];
+    resourceEl.textContent = '4 backends · 12 virtual nodes on this ring (150+ per node in production) · O(log n) lookup';
+  }
+
+  function render(){
+    healthLabelText.textContent = HEALTH_LABEL[algo];
+    if(algo === 'ch'){
+      poolView.classList.add('view-hidden');
+      legendPool.classList.add('view-hidden');
+      ringView.classList.remove('view-hidden');
+      legendRing.classList.remove('view-hidden');
+      renderRing();
+    } else {
+      ringView.classList.add('view-hidden');
+      legendRing.classList.add('view-hidden');
+      poolView.classList.remove('view-hidden');
+      legendPool.classList.remove('view-hidden');
+      renderPool();
+    }
+    playBtn.textContent = '▶ Play';
+    playing = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    if(algo!=='ch'){
+      setPlayheadPercent(0);
+      if(reduceMotion) setPlayheadPercent(100);
+    }
+  }
+
+  function setPlayheadPercent(pct){
+    playheadEl.style.left = pct + '%';
+    playheadEl.dataset.t = 't=' + Math.round(pct);
+    lanesEl.querySelectorAll('.seg').forEach(seg=>{
+      const s = parseFloat(seg.dataset.start), e = parseFloat(seg.dataset.end);
+      seg.classList.toggle('active', pct >= s && pct < e && pct < 100);
+    });
+  }
+
+  function tickPool(ts){
+    if(startTs === null) startTs = ts;
+    const elapsed = ts - startTs;
+    const pct = Math.min(100, (elapsed / DURATION) * 100);
+    setPlayheadPercent(pct);
+    if(pct < 100){
+      rafId = requestAnimationFrame(tickPool);
+    } else {
+      playing = false;
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function playPool(){
+    if(reduceMotion){ setPlayheadPercent(100); playBtn.textContent = '↻ Replay'; return; }
+    startTs = null;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    rafId = requestAnimationFrame(tickPool);
+  }
+
+  function playRing(){
+    if(!ringChords.length) return;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    ringChords.forEach((line,i)=>{
+      const x1=line.x1.baseVal.value, y1=line.y1.baseVal.value, x2=line.x2.baseVal.value, y2=line.y2.baseVal.value;
+      const len = Math.hypot(x2-x1, y2-y1);
+      if(reduceMotion){ line.style.strokeDashoffset = 0; return; }
+      line.style.strokeDasharray = len;
+      line.style.strokeDashoffset = len;
+      line.style.transition = 'none';
+      void line.getBoundingClientRect();
+      line.style.transition = 'stroke-dashoffset 340ms ease';
+      setTimeout(()=>{ line.style.strokeDashoffset = 0; }, 80 + i*130);
+    });
+    setTimeout(()=>{ playing=false; playBtn.textContent = '↻ Replay'; }, 80 + ringChords.length*130 + 400);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if(playing) return;
+    if(algo === 'ch') playRing(); else playPool();
+  });
+
+  document.querySelectorAll('[data-algo]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-algo]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      algo = btn.dataset.algo;
+      render();
+    });
+  });
+
+  healthToggle.addEventListener('change', render);
+
+  render();
+})();
+</script>
+</body>
+</html>

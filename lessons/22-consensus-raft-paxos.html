@@ -1,0 +1,1154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 22 — Consensus Basics (Raft &amp; Paxos)</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+
+  /* ---------- lesson 22 additions: consensus cluster console ---------- */
+  .stage{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 4px 2px;
+    overflow-x:auto;
+  }
+  .stage svg{ min-width:520px; }
+  .step-counter{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+  .log-wrap{ margin-top:18px; overflow-x:auto; }
+  table.log-table{
+    border-collapse:collapse;
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    min-width:360px;
+  }
+  table.log-table th, table.log-table td{
+    border:1px solid var(--border);
+    padding:6px 12px;
+    text-align:center;
+  }
+  table.log-table th{
+    color:var(--text-faint);
+    font-weight:600;
+    background:var(--surface-2);
+  }
+  table.log-table td.committed{ background:var(--teal-soft); color:var(--teal); font-weight:700; }
+  table.log-table td.uncommitted{ background:var(--amber-soft); color:var(--amber); font-weight:700; }
+  table.log-table td.empty{ color:var(--text-faint); }
+  .commit-marker{
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+    color:var(--text-faint);
+    margin:8px 0 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="21-cdns.html"><span class="pnl">&larr; previous</span>CDNs</a><a class="pn-next" href="23-designing-for-failure.html"><span class="pnl">next &rarr;</span>Designing for Failure</a></nav>
+
+  <p class="kicker">System design fundamentals · Phase 2 · Lesson 22</p>
+  <h1>Consensus Basics: Raft &amp; Paxos</h1>
+  <p class="lede">How a cluster of machines agrees on one leader and one totally ordered log — safely, even when messages get lost, nodes crash mid-write, and the network itself splits in half. The actual RPCs and arithmetic, not the folklore version.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why this is where staff interviews actually dig in</h2>
+    <p>Ask a senior engineer to explain consensus and you'll usually get: <em>"a majority of nodes have to agree."</em> That's not wrong — it's just the kind of answer that survives a phone screen and collapses under the first real follow-up: agree on <em>what</em>, through <em>which</em> messages, and what stops two different majorities from agreeing on two different things at once? The gap between "majority vote" and a working implementation is where Raft and Paxos actually live, and it is exactly the gap a staff-level interview is built to probe.</p>
+    <p class="tight">Three specific places candidates fall through:</p>
+    <p class="tight">— They describe leader election as "picking the healthiest or most available node." It isn't. Raft never ranks candidates by health at all; it only enforces that a candidate can't win unless its log is at least as complete as a majority of the electorate, and that any node casts at most one vote per term. Health never enters the algorithm — only two numbers do: term, and log completeness.</p>
+    <p class="tight">— They believe a write is safe the moment it's <em>sent</em> to a majority. Raft is stricter: a write becomes safe once the <b>leader itself</b> has observed acknowledgments from a majority — and, the part almost nobody says unprompted, replication count alone still isn't enough to commit an entry the leader inherited from a <em>previous</em> leader's term. Section 6 has the exact scenario.</p>
+    <p class="tight">— They conflate "the protocol tolerates a network partition" with "nothing interesting happens during one." What actually happens is more precise: one side keeps a leader that can still accept client requests but can never durably commit anything, while the other side elects a new leader and keeps making progress — and the two never conflict, not because either side detects the other, but because of quorum arithmetic alone. That arithmetic is the entire subject of this lesson.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> The overlapping jury</h2>
+    <p class="dek">Every consensus protocol — Raft, Paxos, Viewstamped Replication, all of them — reduces to one arithmetic fact about majorities. Forget the RPC names for a second and look at a jury instead.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 220" role="img" aria-label="Five jurors A through E arranged in a pentagon. An amber region encloses jurors A, B, C; a teal region encloses jurors C, D, E. The two regions overlap only at juror C, which is highlighted with a coral ring.">
+        <circle cx="361" cy="97" r="88" fill="var(--amber)" fill-opacity="0.14" stroke="var(--amber)" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <circle cx="295" cy="145" r="88" fill="var(--teal)" fill-opacity="0.14" stroke="var(--teal)" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="5 3"/>
+
+        <text x="430" y="45" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--amber)">ballot A&#8202;: needs {A,B,C}</text>
+        <text x="220" y="205" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--teal)">ballot B&#8202;: needs {C,D,E}</text>
+
+        <g font-family="ui-monospace, monospace" font-size="12" font-weight="700">
+          <circle cx="320" cy="30" r="15" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="2"/>
+          <text x="320" y="30" text-anchor="middle" dy="0.35em" fill="currentColor">A</text>
+
+          <circle cx="396" cy="85" r="15" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="2"/>
+          <text x="396" y="85" text-anchor="middle" dy="0.35em" fill="currentColor">B</text>
+
+          <circle cx="367" cy="175" r="15" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="2"/>
+          <circle cx="367" cy="175" r="21" fill="none" stroke="var(--coral)" stroke-width="2.5"/>
+          <text x="367" y="175" text-anchor="middle" dy="0.35em" fill="var(--coral)">C</text>
+
+          <circle cx="273" cy="175" r="15" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="2"/>
+          <text x="273" y="175" text-anchor="middle" dy="0.35em" fill="currentColor">D</text>
+
+          <circle cx="244" cy="85" r="15" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="2"/>
+          <text x="244" y="85" text-anchor="middle" dy="0.35em" fill="currentColor">E</text>
+        </g>
+        <text x="320" y="17" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="currentColor" fill-opacity="0.55">5 seats · 3 signatures needed for a valid verdict</text>
+      </svg>
+      <figcaption>Two rival ballots try to seat a leader in the same term: {A,B,C} sign one, {C,D,E} sign the other. Getting both to a 3-of-5 majority would take 6 signatures out of only 5 jurors — by the pigeonhole principle, at least one juror has to be asked to sign both. Here it's C. C already signed ballot A and refuses to sign a conflicting ballot in the same term, so ballot B can never complete. That refusal is the entire quorum-intersection argument: no timeouts, no coordinator, just arithmetic.</figcaption>
+    </figure>
+    <p class="tight">That's the whole reason a network split can never produce two leaders — or two different committed values for the same log slot — at the same time. Raft and Paxos differ enormously in mechanism: how a leader gets picked, how proposals get numbered, how many message round-trips it costs. Neither one can violate this arithmetic, because neither one tries to. Section 3 shows the actual RPCs that enforce it.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Watch the cluster decide</h2>
+    <p class="dek">Three tabs, three mechanisms, one arithmetic underneath all of them. Pick a scenario and a cluster size, then press play. Amber marks a candidate or an in-flight/uncommitted write; teal marks a leader, a successful vote or ack, or a committed entry; coral marks a stale term or a message the partition swallowed.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Scenario">
+          <button data-scenario="election" aria-pressed="true">Leader election</button>
+          <button data-scenario="replication" aria-pressed="false">Log replication</button>
+          <button data-scenario="partition" aria-pressed="false">Partition &amp; quorum</button>
+        </div>
+        <div class="tabgroup" role="group" aria-label="Cluster size">
+          <button data-n="5" aria-pressed="true">5 nodes</button>
+          <button data-n="3" aria-pressed="false">3 nodes</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <span class="stat-line" id="statLine">term 0 · quorum = 3 of 5 nodes</span>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="step-counter" id="stepCounter">step 1 of 6</span>
+          <button class="playbtn" id="playBtn">&#9654; Play</button>
+        </div>
+      </div>
+
+      <div class="stage" id="stage"></div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:transparent; border:1.5px solid currentColor; opacity:0.6;"></span>follower</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>candidate / uncommitted entry</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>leader / committed entry</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>stale term / blocked by partition</span>
+      </div>
+      <p class="console-note" id="consoleCaption">All nodes start as followers in term 0.</p>
+      <div class="log-wrap" id="logWrap" style="display:none;"></div>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">the arithmetic behind the animation</div>
+    <p class="dek" style="margin-top:0;">Not tuned for effect — this is the exact quorum math every Raft implementation runs, and the timing bounds the original paper (Ongaro &amp; Ousterhout, 2014) derives its numbers from.</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>Fault tolerance vs. cluster size</h3>
+        <div class="bench-sub">quorum = &lfloor;n/2&rfloor; + 1 &middot; tolerates f = &lfloor;(n&minus;1)/2&rfloor; node failures</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>n=3 &middot; quorum 2</span><span class="val">f=1</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:33%; background:var(--teal);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>n=4 &middot; quorum 3</span><span class="val">f=1</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:33%; background:var(--coral);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>n=5 &middot; quorum 3</span><span class="val">f=2</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:67%; background:var(--teal);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>n=6 &middot; quorum 4</span><span class="val">f=2</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:67%; background:var(--coral);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>n=7 &middot; quorum 4</span><span class="val">f=3</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--teal);"></div></div>
+        </div>
+      </div>
+      <div class="bench-card">
+        <h3>Timing bounds that make it work</h3>
+        <div class="bench-sub">Raft paper &sect;5.6: broadcastTime &#8810; electionTimeout &#8810; MTBF</div>
+        <p class="tight" style="font-size:0.85rem;"><code>broadcastTime</code> &mdash; one AppendEntries round-trip. Roughly 0.5&ndash;20ms on a typical datacenter LAN.</p>
+        <p class="tight" style="font-size:0.85rem;"><code>electionTimeout</code> &mdash; must be several multiples of broadcastTime, or a healthy leader's own heartbeat can race a false timeout. Raft's reference implementation used 150&ndash;300ms &mdash; the exact range this page's simulator uses.</p>
+        <p class="tight" style="font-size:0.85rem;"><code>MTBF</code> &mdash; mean time between single-server failures, typically months. electionTimeout only needs to be tiny relative to <em>this</em>, so elections stay rare, not fast.</p>
+      </div>
+    </div>
+    <p class="tight" style="margin-top:18px;"><b>Read the n=4 and n=6 rows again.</b> Adding a node to an already-odd cluster without going all the way to the <em>next</em> odd number buys nothing — you pay the extra replication bandwidth and the extra round-trip of a fourth or sixth voter while tolerating exactly as many failures as one node fewer would. This is the entire reason a well-run production Raft or Paxos cluster is sized 3, 5, or occasionally 7 &mdash; never 4 or 6.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>etcd</b> runs Raft under Kubernetes' entire control plane. Every <code>kubectl apply</code>, every scheduler decision, every ConfigMap read goes through an etcd Raft-replicated log with a single leader per term; that's also why a Kubernetes control plane needs 3 or 5 etcd members, never an even number, for exactly the fault-tolerance-table reason above.</li>
+      <li><b>HashiCorp Consul and Nomad</b> both embed the <code>hashicorp/raft</code> library for leader election and their replicated KV store — one of the most widely deployed real-world Raft implementations outside etcd itself.</li>
+      <li><b>CockroachDB and TiKV (TiDB's storage layer)</b> run <em>Multi-Raft</em>: every data shard ("range") is its own tiny independent Raft group with its own leader, so a single physical node is simultaneously the Raft leader for thousands of unrelated ranges. This is the pattern to name when an interviewer asks how you'd scale Raft past one log's throughput ceiling.</li>
+      <li><b>Kafka's KRaft mode</b> (KIP-500, the default since Kafka 3.x/4.0) replaced the old ZooKeeper-based controller with a Raft-based metadata quorum — cluster membership and topic metadata are themselves now a Raft-replicated log.</li>
+      <li><b>ZooKeeper's Zab</b> (Zookeeper Atomic Broadcast) predates Raft's popularity and solves the same problem with a leader-based, epoch-numbered protocol — the direct intellectual ancestor of a lot of what Raft later made legible. Google's original Chubby lock service ran classic multi-Paxos and underpinned GFS and BigTable's coordination.</li>
+      <li><b>Google Spanner</b> runs Paxos per shard for replication, layered under TrueTime for external consistency — the consensus log gives ordering within a shard; TrueTime is what lets Spanner make cross-shard ordering claims without talking to every shard.</li>
+      <li><b>MongoDB replica sets</b> (3.2+) use a Raft-derived election protocol for primary selection, even though the on-disk replication mechanics predate and differ from textbook Raft.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: run a real election simulation</h2>
+    <p class="dek">This is a discrete-event model of Raft leader election — randomized timeouts, independent per-link network delay, at-most-one-vote-per-term — not a toy that fakes the numbers. Run it yourself; the split-vote run below is a genuine emergent split, not a scripted one.</p>
+
+    <div class="label-row">raft_election.py</div>
+    <pre class="code"><code>import random
+
+def simulate_election(n=5, seed=42, max_rounds=6):
+    random.seed(seed)
+    quorum = n // 2 + 1
+    term = 0
+    election_timeout = {i: random.randint(150, 300) for i in range(n)}
+    print(f"cluster size n={n}, quorum={quorum}")
+    print(f"election timeouts (ms): {election_timeout}")
+
+    leader = None
+    round_no = 0
+    while leader is None and round_no < max_rounds:
+        round_no += 1
+        term += 1
+        # per-round jitter models the randomized *re*-timeout Raft uses after a split vote
+        jitter = {i: election_timeout[i] + random.randint(0, 60) * (round_no - 1) for i in range(n)}
+        order = sorted(jitter, key=jitter.get)
+        first = jitter[order[0]]
+        # anyone whose timer fires within 5ms of the first also goes candidate
+        candidates = [i for i in order if jitter[i] - first <= 5]
+
+        print(f"\n--- term {term} (round {round_no}) ---")
+        for c in candidates:
+            print(f"  node {c} times out ({jitter[c]}ms) -> candidate, sends RequestVote to all")
+
+        # each follower grants its one vote to whichever candidate's RequestVote
+        # arrives first, given independent random network delay per link —
+        # THIS is what makes a genuine split vote possible
+        arrival = {}
+        for voter in range(n):
+            if voter in candidates:
+                continue
+            delays = {c: random.uniform(1, 15) for c in candidates}
+            arrival[voter] = min(delays, key=delays.get)
+
+        votes = {c: {c} for c in candidates}
+        for voter, c in arrival.items():
+            votes[c].add(voter)
+
+        for c in candidates:
+            print(f"  node {c} collects votes {sorted(votes[c])} -> {len(votes[c])}/{n}")
+            if len(votes[c]) >= quorum:
+                leader = c
+
+        if leader is None:
+            print(f"  no candidate reached quorum ({quorum}/{n}) -> SPLIT VOTE, all retry with fresh randomized timeout")
+
+    if leader is not None:
+        print(f"\n>>> node {leader} becomes LEADER for term {term}  (quorum {quorum}/{n})")
+    else:
+        print(f"\n>>> no leader elected within {max_rounds} rounds")
+    return leader, term
+
+
+def is_committed(match_index, n):
+    """match_index[i] = highest log index node i has replicated.
+    An index is committed once >= quorum nodes have replicated it."""
+    quorum = n // 2 + 1
+    highest = 0
+    for idx in range(1, max(match_index) + 1):
+        if sum(1 for m in match_index if m >= idx) >= quorum:
+            highest = idx
+    return highest
+
+
+if __name__ == "__main__":
+    print("=" * 64)
+    print("RUN 1 — clean election, single round")
+    print("=" * 64)
+    simulate_election(n=5, seed=7)
+
+    print("\n" + "=" * 64)
+    print("RUN 2 — split vote on term 1, resolved on retry (seed=11)")
+    print("=" * 64)
+    simulate_election(n=5, seed=11)
+
+    print("\n" + "=" * 64)
+    print("fault tolerance vs cluster size (why odd N)")
+    print("=" * 64)
+    print(f"{'n':>3} {'quorum':>7} {'tolerates f=floor((n-1)/2) failures':>36}")
+    for n in range(3, 8):
+        q = n // 2 + 1
+        f = (n - 1) // 2
+        print(f"{n:>3} {q:>7} {f:>36}")
+
+    print("\n" + "=" * 64)
+    print("commit-index advancement from matchIndex")
+    print("=" * 64)
+    for n, match_index in [(5, [4, 4, 3, 2, 1]), (5, [4, 4, 4, 2, 1]), (3, [5, 2, 2])]:
+        c = is_committed(match_index, n)
+        print(f"n={n} matchIndex={match_index} quorum={n//2+1} -> commitIndex advances to {c}")</code></pre>
+
+    <div class="label-row">output (actually run — CPython 3.10.12)</div>
+    <pre class="output"><code>================================================================
+RUN 1 — clean election, single round
+================================================================
+cluster size n=5, quorum=3
+election timeouts (ms): {0: 232, 1: 188, 2: 251, 3: 162, 4: 168}
+
+--- term 1 (round 1) ---
+  node 3 times out (162ms) -&gt; candidate, sends RequestVote to all
+  node 3 collects votes [0, 1, 2, 3, 4] -&gt; 5/5
+
+&gt;&gt;&gt; node 3 becomes LEADER for term 1  (quorum 3/5)
+
+================================================================
+RUN 2 — split vote on term 1, resolved on retry (seed=11)
+================================================================
+cluster size n=5, quorum=3
+election timeouts (ms): {0: 265, 1: 293, 2: 269, 3: 265, 4: 280}
+
+--- term 1 (round 1) ---
+  node 0 times out (265ms) -&gt; candidate, sends RequestVote to all
+  node 3 times out (265ms) -&gt; candidate, sends RequestVote to all
+  node 2 times out (269ms) -&gt; candidate, sends RequestVote to all
+  node 0 collects votes [0, 1] -&gt; 2/5
+  node 3 collects votes [3] -&gt; 1/5
+  node 2 collects votes [2, 4] -&gt; 2/5
+  no candidate reached quorum (3/5) -&gt; SPLIT VOTE, all retry with fresh randomized timeout
+
+--- term 2 (round 2) ---
+  node 4 times out (282ms) -&gt; candidate, sends RequestVote to all
+  node 4 collects votes [0, 1, 2, 3, 4] -&gt; 5/5
+
+&gt;&gt;&gt; node 4 becomes LEADER for term 2  (quorum 3/5)
+
+================================================================
+fault tolerance vs cluster size (why odd N)
+================================================================
+  n  quorum  tolerates f=floor((n-1)/2) failures
+  3       2                                    1
+  4       3                                    1
+  5       3                                    2
+  6       4                                    2
+  7       4                                    3
+
+================================================================
+commit-index advancement from matchIndex
+================================================================
+n=5 matchIndex=[4, 4, 3, 2, 1] quorum=3 -&gt; commitIndex advances to 3
+n=5 matchIndex=[4, 4, 4, 2, 1] quorum=3 -&gt; commitIndex advances to 4
+n=3 matchIndex=[5, 2, 2] quorum=2 -&gt; commitIndex advances to 2</code></pre>
+
+    <p class="tight"><b>The exercise</b> — predict before you run it, then check: wrap <code>simulate_election</code> in a loop over 500 different seeds for each of n=3, 4, 5, 6, 7, and count how often <code>round_no &gt; 1</code> (a genuine split vote happened). Does cluster size change the split-vote rate, and if so, in which direction?</p>
+    <pre class="output"><code>n=3: split vote in  3/500 runs = 0.6%
+n=4: split vote in 37/500 runs = 7.4%
+n=5: split vote in  4/500 runs = 0.8%
+n=6: split vote in 40/500 runs = 8.0%
+n=7: split vote in  5/500 runs = 1.0%</code></pre>
+    <p class="tight">Even clusters split roughly 8&ndash;10&times; more often than odd ones in this model. The reason is the same pigeonhole argument from section 2, run in reverse: with an even n, two simultaneous candidates can split the remaining followers exactly down the middle and tie; with an odd n, the remaining followers are an odd number too, so an exact tie between two candidates is structurally impossible — someone always edges ahead. Odd cluster sizes aren't just "more efficient per node" (the fault-tolerance table); they're also measurably more decisive.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "Raft and Paxos work because a majority of nodes agree on a value." <b>Strong:</b> "A majority agreeing is necessary but not the full safety argument. Raft specifically forbids a leader from committing an entry purely by counting replicas <em>if that entry was appended by an earlier leader in an earlier term</em> — it can only directly commit entries from its own current term. Older entries get committed only indirectly, as a side effect of a same-term entry after them getting committed."</li>
+        <li>The killer follow-up: <b>"Why isn't 'replicated on a majority' enough, all by itself, to call an entry committed forever?"</b> Because leadership can still change after that point, and a <em>new</em> leader is only required to have a log that was up to date as of the vote that elected it — not one that's byte-identical to the old leader's. There's a known scenario (Raft paper, Figure 8) where an entry sits on a majority under one leader, a new leader gets elected without that specific entry needing to be part of what got it elected, and if a naive "committed once on N/2+1 nodes, ever" rule were used, that entry could later be silently overwritten — a real safety violation. Restricting direct commits to the leader's own current term closes that hole.</li>
+        <li>Also worth naming: leader election isn't a popularity contest. A candidate's RequestVote carries its last log index and term; a voter rejects it outright if its own log is more up to date — full stop, before term or anything else is even compared for that check. This is what stops an out-of-date node from ever becoming leader and silently rolling the cluster's data backward.</li>
+        <li>Know the terminology precisely: <b>quorum</b> is always relative to total configured membership, not to whichever nodes happen to be reachable right now — that single distinction is what section 3's partition tab exists to make visceral.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">A 7-node Raft cluster loses network connectivity between two groups — 4 nodes on one side, 3 on the other — for 90 seconds, then the link is restored. The leader happened to be on the 3-node side when the partition started.</p>
+      <p class="tight"><b>Work through all three: (a) Can the 4-node side commit new writes during the 90 seconds, and why? (b) Can the 3-node side's leader commit new writes during that window? (c) If a client kept sending writes to that old leader the whole time and it kept appending them locally, what happens to those entries the moment the link comes back?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>From Lesson 16 — Consistency Models</h3>
+      <p class="tight">Lesson 16 laid out the spectrum from linearizable down through sequential, causal, and eventual consistency, and the latency you buy back at each step down. Today's lesson is the machinery that makes the strongest point on that spectrum achievable at all: a Raft- or Paxos-replicated log, read through the leader (or via lease/read-index reads), <em>is</em> what a linearizable store is built out of underneath. When a system instead lets you read from followers for lower latency, it isn't using a weaker consensus protocol — it's using the exact same one, and deliberately choosing not to pay for the guarantee on the read path. Same tradeoff from Lesson 16, except now you've seen the specific commit-index and quorum mechanics that guarantee's price is actually paying for.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="21-cdns.html"><span class="pnl">&larr; previous</span>CDNs</a><a class="pn-next" href="23-designing-for-failure.html"><span class="pnl">next &rarr;</span>Designing for Failure</a></nav>
+<footer class="page">simulation run on CPython 3.10.12 · lesson 22 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const LABELS = ['A','B','C','D','E'];
+  function quorumOf(n){ return Math.floor(n/2) + 1; }
+
+  function partitionGroups(n){
+    const minoritySize = Math.floor(n/2);
+    const minorityIdx = Array.from({length:minoritySize}, (_,i)=>i);
+    const majorityIdx = Array.from({length:n-minoritySize}, (_,i)=>i+minoritySize);
+    return {minorityIdx, majorityIdx};
+  }
+
+  /* ---------- step generators ---------- */
+
+  function buildElectionSteps(n){
+    const q = quorumOf(n);
+    const others = Array.from({length:n-1}, (_,i)=>i+1);
+    const steps = [];
+    let ns;
+
+    ns = Array(n).fill('follower');
+    steps.push({ term:0, nodeState:ns.slice(), messages:[],
+      caption:`All ${n} nodes start as followers in term 0. Each runs its own randomized election timeout — 150–300ms in Raft's reference implementation — specifically so simultaneous timeouts are rare.` });
+
+    ns = ns.slice(); ns[0] = 'candidate';
+    steps.push({ term:1, nodeState:ns.slice(), messages:[],
+      caption:`${LABELS[0]}'s timer fires first. It increments currentTerm to 1, votes for itself, and becomes a candidate.` });
+
+    steps.push({ term:1, nodeState:ns.slice(), messages: others.map(i=>({from:0,to:i,kind:'reqvote'})),
+      caption:`Candidate ${LABELS[0]} sends RequestVote(term=1, lastLogIndex, lastLogTerm) to every peer, in parallel.` });
+
+    steps.push({ term:1, nodeState:ns.slice(), messages: others.map(i=>({from:i,to:0,kind:'grant'})),
+      caption:`Every peer grants its vote: none has voted yet in term 1, and ${LABELS[0]}'s log is at least as up to date as theirs (Raft §5.4.1). Each peer can grant at most one vote per term — that single rule is what makes the quorum arithmetic hold.` });
+
+    ns = ns.slice(); ns[0] = 'leader';
+    steps.push({ term:1, nodeState:ns.slice(), messages:[],
+      caption:`${LABELS[0]} collects ${n} of ${n} votes — comfortably past the quorum of ${q} it actually needed — and becomes leader for term 1. It only ever needed a majority, never unanimity.` });
+
+    steps.push({ term:1, nodeState:ns.slice(), messages: others.map(i=>({from:0,to:i,kind:'hb'})),
+      caption:`As leader, ${LABELS[0]} immediately starts sending periodic heartbeats — empty AppendEntries RPCs — to assert authority and reset every follower's election timer before it can fire again.` });
+
+    return steps;
+  }
+
+  function buildReplicationSteps(n){
+    const q = quorumOf(n);
+    const followers = Array.from({length:n-1}, (_,i)=>i+1);
+    const ns = Array(n).fill('follower'); ns[0] = 'leader';
+    const steps = [];
+    let logs = Array.from({length:n}, () => [{term:1, committed:true}]);
+
+    steps.push({ term:1, nodeState:ns.slice(), logs:logs.map(l=>l.slice()), commitIndex:1, messages:[],
+      caption:`Steady state after the election: index 1 is already committed on all ${n} nodes. A client now sends a write to the leader.` });
+
+    logs = logs.map(l=>l.slice());
+    logs[0] = logs[0].concat([{term:1, committed:false}]);
+    steps.push({ term:1, nodeState:ns.slice(), logs:logs.map(l=>l.slice()), commitIndex:1, messages:[],
+      caption:`${LABELS[0]} appends the command to its own log at index 2 — uncommitted — before contacting anyone else.` });
+
+    steps.push({ term:1, nodeState:ns.slice(), logs:logs.map(l=>l.slice()), commitIndex:1,
+      messages: followers.map(i=>({from:0,to:i,kind:'ae'})),
+      caption:`Leader sends AppendEntries(prevLogIndex=1, prevLogTerm=1, entries=[idx2/term1], leaderCommit=1). Every RPC carries the previous entry's index and term so the follower can verify its log matches before accepting anything new — the log-matching property.` });
+
+    logs = logs.map(l=>l.slice());
+    followers.forEach(i=>{ logs[i] = logs[i].concat([{term:1, committed:false}]); });
+    steps.push({ term:1, nodeState:ns.slice(), logs:logs.map(l=>l.slice()), commitIndex:1,
+      messages: followers.map(i=>({from:i,to:0,kind:'ack'})),
+      caption:`Index 1 matched on every follower, so the append succeeds everywhere. Each one appends index 2 and acks it — but none of them consider it committed yet. Only the leader gets to decide that.` });
+
+    logs = logs.map(l=>l.slice());
+    logs[0] = logs[0].slice(); logs[0][1] = {term:1, committed:true};
+    steps.push({ term:1, nodeState:ns.slice(), logs:logs.map(l=>l.slice()), commitIndex:2, messages:[],
+      caption:`${LABELS[0]} now has index 2 on itself plus ${followers.length} acks — ${n} of ${n} in this run, comfortably past the quorum of ${q} — so it advances its own commitIndex to 2. The write is durable right now, even though the followers don't know it yet.` });
+
+    logs = logs.map(l=>l.slice());
+    followers.forEach(i=>{ logs[i] = logs[i].slice(); logs[i][1] = {term:1, committed:true}; });
+    steps.push({ term:1, nodeState:ns.slice(), logs:logs.map(l=>l.slice()), commitIndex:2,
+      messages: followers.map(i=>({from:0,to:i,kind:'hb'})),
+      caption:`The next heartbeat piggybacks leaderCommit=2. There's no separate "commit" RPC in Raft — followers just learn the news on the next AppendEntries and advance their own commit index to match.` });
+
+    return steps;
+  }
+
+  function buildPartitionSteps(n){
+    const q = quorumOf(n);
+    const {minorityIdx, majorityIdx} = partitionGroups(n);
+    const leaderIdx = minorityIdx[0];
+    const newLeaderIdx = majorityIdx[0];
+    const sameSideFollowers = minorityIdx.filter(i=>i!==leaderIdx);
+    const steps = [];
+
+    function baseNS(overrides){
+      const ns = Array(n).fill('follower');
+      Object.keys(overrides || {}).forEach(k=>{ ns[k] = overrides[k]; });
+      return ns;
+    }
+
+    steps.push({ term:1, nodeState:baseNS({[leaderIdx]:'leader'}), messages:[], partitioned:false,
+      caption:`Steady state: ${LABELS[leaderIdx]} is leader for term 1, all ${n} nodes reachable.` });
+
+    steps.push({ term:1, nodeState:baseNS({[leaderIdx]:'leader'}), messages:[], partitioned:true,
+      caption:`A network partition splits the cluster: {${minorityIdx.map(i=>LABELS[i]).join(', ')}} can still reach each other, but neither side can reach {${majorityIdx.map(i=>LABELS[i]).join(', ')}}.` });
+
+    const hbMsgs = [];
+    sameSideFollowers.forEach(i=> hbMsgs.push({from:leaderIdx, to:i, kind:'hb'}));
+    majorityIdx.forEach(i=> hbMsgs.push({from:leaderIdx, to:i, kind:'blocked'}));
+    steps.push({ term:1, nodeState:baseNS({[leaderIdx]:'leader'}), messages:hbMsgs, partitioned:true,
+      caption:`${LABELS[leaderIdx]} keeps acting as leader and keeps sending heartbeats — it has no way to know it's cut off. The ones aimed at the other side are simply lost.` });
+
+    const ackMsgs = sameSideFollowers.map(i=>({from:i, to:leaderIdx, kind:'ack'}));
+    steps.push({ term:1, nodeState:baseNS({[leaderIdx]:'leader'}), messages:ackMsgs, partitioned:true,
+      caption:`A client write arrives at ${LABELS[leaderIdx]}. It replicates to everyone it can still reach — ${1+sameSideFollowers.length} of ${n} nodes total. Quorum for this cluster is ${q}. The entry can never commit, and the request eventually times out. Nothing unsafe happens, because nothing was ever acknowledged as committed.` });
+
+    const reqMsgs = majorityIdx.filter(i=>i!==newLeaderIdx).map(i=>({from:newLeaderIdx, to:i, kind:'reqvote'}));
+    steps.push({ term:1, nodeState:baseNS({[leaderIdx]:'leader', [newLeaderIdx]:'candidate'}), messages:reqMsgs, partitioned:true,
+      caption:`On the majority side, ${LABELS[newLeaderIdx]} stops hearing heartbeats and times out. It becomes a candidate for term 2 and requests votes from the peers it can still reach.` });
+
+    const grantMsgs = majorityIdx.filter(i=>i!==newLeaderIdx).map(i=>({from:i, to:newLeaderIdx, kind:'grant'}));
+    steps.push({ term:2, nodeState:baseNS({[leaderIdx]:'leader', [newLeaderIdx]:'leader'}), messages:grantMsgs, partitioned:true,
+      caption:`${LABELS[newLeaderIdx]} wins ${majorityIdx.length} of ${n} votes — using only reachable peers, but ${majorityIdx.length} is still a majority of the entire ${n}-node membership, not just of the reachable subset. That's the whole safety argument: quorum is measured against total membership, so both sides can never seat a leader in the same term.` });
+
+    steps.push({ term:2, nodeState:baseNS({[leaderIdx]:'stale', [newLeaderIdx]:'leader'}), messages:[{from:newLeaderIdx, to:leaderIdx, kind:'hb'}], partitioned:false,
+      caption:`The partition heals. ${LABELS[newLeaderIdx]}'s next heartbeat, stamped term 2, reaches ${LABELS[leaderIdx]}. Seeing a term higher than its own currentTerm (1), ${LABELS[leaderIdx]} immediately reverts to follower — unconditional, not a judgment call.` });
+
+    steps.push({ term:2, nodeState:baseNS({[newLeaderIdx]:'leader'}), messages:[], partitioned:false,
+      caption:`Cluster reunified under ${LABELS[newLeaderIdx]}, term 2. ${LABELS[leaderIdx]}'s uncommitted entry from the write attempt is discarded and overwritten to match the new leader's log — safe to discard, because it never reached a majority in the first place.` });
+
+    return steps;
+  }
+
+  const DATA = {
+    election:    { 3: buildElectionSteps(3),    5: buildElectionSteps(5) },
+    replication: { 3: buildReplicationSteps(3), 5: buildReplicationSteps(5) },
+    partition:   { 3: buildPartitionSteps(3),   5: buildPartitionSteps(5) },
+  };
+
+  /* ---------- rendering ---------- */
+
+  function positionsFor(scenario, n){
+    if(scenario === 'partition'){
+      const {minorityIdx, majorityIdx} = partitionGroups(n);
+      const pts = new Array(n);
+      const leftX = 175, rightX = 465, cy = 125, gap = 56;
+      majorityIdx.forEach((idx,i)=>{ pts[idx] = {x:leftX, y: cy - ((majorityIdx.length-1)/2)*gap + i*gap}; });
+      minorityIdx.forEach((idx,i)=>{ pts[idx] = {x:rightX, y: cy - ((minorityIdx.length-1)/2)*gap + i*gap}; });
+      return pts;
+    }
+    const cx = 320, cy = 125, r = n === 3 ? 85 : 100;
+    const pts = [];
+    for(let i=0;i<n;i++){
+      const angle = -Math.PI/2 + (2*Math.PI*i/n);
+      pts.push({x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle)});
+    }
+    return pts;
+  }
+
+  function nodeSVG(pt, label, state){
+    let fill='none', stroke='currentColor', so='0.6', dash='', tf='currentColor', tfo='0.85';
+    if(state==='leader'){ fill='var(--teal)'; stroke='var(--teal)'; so='1'; tf='var(--surface)'; tfo='1'; }
+    else if(state==='candidate'){ fill='var(--amber)'; stroke='var(--amber)'; so='1'; tf='var(--surface)'; tfo='1'; }
+    else if(state==='stale'){ stroke='var(--coral)'; so='1'; dash=' stroke-dasharray="3 3"'; tf='var(--coral)'; tfo='1'; }
+    return `<g>
+      <circle cx="${pt.x}" cy="${pt.y}" r="16" fill="${fill}" stroke="${stroke}" stroke-opacity="${so}" stroke-width="2"${dash}/>
+      <text x="${pt.x}" y="${pt.y}" text-anchor="middle" dy="0.35em" font-family="ui-monospace, monospace" font-size="12" font-weight="700" fill="${tf}" fill-opacity="${tfo}">${label}</text>
+    </g>`;
+  }
+
+  function arrowSVG(p1, p2, kind){
+    const colorMap  = {reqvote:'var(--amber)', grant:'var(--teal)', ack:'var(--teal)', ae:'var(--amber)', hb:'var(--teal)', blocked:'var(--coral)'};
+    const labelMap  = {reqvote:'vote?', grant:'yes', ack:'ack', ae:'AE', hb:'hb', blocked:''};
+    const markerMap = {reqvote:'url(#arrowAmber)', ae:'url(#arrowAmber)', grant:'url(#arrowTeal)', ack:'url(#arrowTeal)', hb:'url(#arrowTeal)', blocked:''};
+    const color = colorMap[kind] || 'currentColor';
+    const label = labelMap[kind] || '';
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const ux = dx/len, uy = dy/len;
+    const R = 20;
+    const sx = p1.x + ux*R, sy = p1.y + uy*R;
+    let ex, ey, extra = '';
+    if(kind === 'blocked'){
+      ex = p1.x + dx*0.5; ey = p1.y + dy*0.5;
+      extra = `<line x1="${(ex-5).toFixed(1)}" y1="${(ey-5).toFixed(1)}" x2="${(ex+5).toFixed(1)}" y2="${(ey+5).toFixed(1)}" stroke="var(--coral)" stroke-width="2"/>
+        <line x1="${(ex-5).toFixed(1)}" y1="${(ey+5).toFixed(1)}" x2="${(ex+5).toFixed(1)}" y2="${(ey-5).toFixed(1)}" stroke="var(--coral)" stroke-width="2"/>`;
+    } else {
+      ex = p2.x - ux*R; ey = p2.y - uy*R;
+    }
+    const midX = (sx+ex)/2, midY = (sy+ey)/2 - 7;
+    const dashAttr = kind === 'blocked' ? ' stroke-dasharray="4 3"' : '';
+    const marker = markerMap[kind] ? ` marker-end="${markerMap[kind]}"` : '';
+    return `<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${color}" stroke-width="1.8"${dashAttr}${marker}/>
+      ${extra}
+      ${label ? `<text x="${midX.toFixed(1)}" y="${midY.toFixed(1)}" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" font-weight="600" fill="${color}">${label}</text>` : ''}`;
+  }
+
+  function buildSVG(scenario, n, step){
+    const pts = positionsFor(scenario, n);
+    let inner = '';
+    if(scenario === 'partition' && step.partitioned){
+      inner += `<line x1="320" y1="15" x2="320" y2="235" stroke="var(--coral)" stroke-width="2" stroke-dasharray="6 4" stroke-opacity="0.55"/>
+        <text x="320" y="10" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="var(--coral)">network partition</text>`;
+    }
+    (step.messages || []).forEach(m => { inner += arrowSVG(pts[m.from], pts[m.to], m.kind); });
+    pts.forEach((pt, i) => { inner += nodeSVG(pt, LABELS[i], step.nodeState[i]); });
+    return `<svg viewBox="0 0 640 250" role="img" aria-label="Raft cluster of ${n} nodes, term ${step.term}" style="width:100%;height:auto;display:block;">
+      <defs>
+        <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--amber)"/></marker>
+        <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--teal)"/></marker>
+      </defs>
+      ${inner}
+    </svg>`;
+  }
+
+  function buildLogTable(n, step){
+    const maxLen = Math.max(...step.logs.map(l=>l.length));
+    let head = '<tr><th>idx</th>' + LABELS.slice(0,n).map(l=>`<th>${l}</th>`).join('') + '</tr>';
+    let rows = '';
+    for(let idx=1; idx<=maxLen; idx++){
+      rows += '<tr><td>' + idx + '</td>' + step.logs.map(log=>{
+        const e = log[idx-1];
+        if(!e) return '<td class="empty">&mdash;</td>';
+        const cls = e.committed ? 'committed' : 'uncommitted';
+        return `<td class="${cls}">t${e.term}</td>`;
+      }).join('') + '</tr>';
+    }
+    return `<table class="log-table"><thead>${head}</thead><tbody>${rows}</tbody></table>
+      <p class="commit-marker">commitIndex = ${step.commitIndex} &middot; quorum needed to advance it = ${quorumOf(n)} of ${n} nodes</p>`;
+  }
+
+  /* ---------- controller ---------- */
+
+  let state = { scenario:'election', n:5, stepIndex:0 };
+  let playTimer = null;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const stageEl = document.getElementById('stage');
+  const captionEl = document.getElementById('consoleCaption');
+  const statLineEl = document.getElementById('statLine');
+  const stepCounterEl = document.getElementById('stepCounter');
+  const playBtn = document.getElementById('playBtn');
+  const logWrapEl = document.getElementById('logWrap');
+
+  function currentSteps(){ return DATA[state.scenario][state.n]; }
+
+  function render(){
+    const steps = currentSteps();
+    if(reduceMotion) state.stepIndex = steps.length - 1;
+    const step = steps[state.stepIndex];
+    stageEl.innerHTML = buildSVG(state.scenario, state.n, step);
+    captionEl.textContent = step.caption;
+    statLineEl.textContent = `term ${step.term} · quorum = ${quorumOf(state.n)} of ${state.n} nodes`;
+    stepCounterEl.textContent = `step ${state.stepIndex+1} of ${steps.length}`;
+    if(state.scenario === 'replication'){
+      logWrapEl.style.display = '';
+      logWrapEl.innerHTML = buildLogTable(state.n, step);
+    } else {
+      logWrapEl.style.display = 'none';
+      logWrapEl.innerHTML = '';
+    }
+    if(reduceMotion) playBtn.textContent = '↻ Replay';
+  }
+
+  function stopPlay(){
+    if(playTimer){ clearInterval(playTimer); playTimer = null; }
+  }
+
+  function play(){
+    if(reduceMotion){ render(); return; }
+    const steps = currentSteps();
+    stopPlay();
+    if(state.stepIndex >= steps.length - 1) state.stepIndex = 0;
+    render();
+    playBtn.textContent = '⏸ Playing…';
+    playTimer = setInterval(() => {
+      state.stepIndex++;
+      render();
+      if(state.stepIndex >= steps.length - 1){
+        stopPlay();
+        playBtn.textContent = '↻ Replay';
+      }
+    }, 1300);
+  }
+
+  playBtn.addEventListener('click', play);
+
+  document.querySelectorAll('[data-scenario]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-scenario]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.scenario = btn.dataset.scenario;
+      state.stepIndex = 0;
+      stopPlay();
+      playBtn.textContent = '▶ Play';
+      render();
+    });
+  });
+  document.querySelectorAll('[data-n]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-n]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.n = parseInt(btn.dataset.n, 10);
+      state.stepIndex = 0;
+      stopPlay();
+      playBtn.textContent = '▶ Play';
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

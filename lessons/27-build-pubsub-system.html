@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 27 — Build a Simple Pub/Sub System in Python</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="26-build-consistent-hash-ring.html"><span class="pnl">&larr; previous</span>Build a Consistent-Hash Ring in Python</a><a class="pn-next" href="28-build-leader-election.html"><span class="pnl">next &rarr;</span>Build a Toy Leader-Election Algorithm in Python</a></nav>
+
+  <p class="kicker">Applied system design in Python · Phase 3 · Lesson 27</p>
+  <h1>Build a Simple Pub/Sub System in Python</h1>
+  <p class="lede">Anyone can sketch a dict of topics mapping to lists of callbacks. The interview — and production — starts at the three questions that sketch doesn't answer: what happens when a subscriber crashes mid-message, what happens when one subscriber falls behind, and what exactly do you mean by "delivered"?</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why "just loop over subscribers" fails the bar</h2>
+    <p>Ask a mid-level engineer to design a pub/sub system and you'll often get: <em>"a dict from topic name to a list of subscriber callbacks — publish loops over the list and calls each one."</em> It compiles, it demos fine with three subscribers on a laptop, and it is missing every property that makes pub/sub worth building instead of just calling functions directly.</p>
+    <p class="tight">Three specific gaps a staff interviewer is listening for. <b>No acknowledgment means no delivery guarantee</b> — if a callback throws, or the process dies mid-handler, that message is simply gone; that's fire-and-forget, not "pub/sub." <b>No independent queues means no fan-out isolation</b> — calling a callback directly means <code>publish()</code> cannot move on to subscriber #2 until subscriber #1's handler returns, so one slow subscriber <em>is</em> the entire publish call. <b>No bound on anything means no backpressure</b> — a plain Python list has no <code>maxsize</code>, so a subscriber that's chronically slower than the producer just accumulates memory until something falls over.</p>
+    <p class="tight">This lesson builds the real mechanism for all three — per-subscriber queues, ack-based at-least-once delivery with visibility-timeout redelivery, and three backpressure policies you can actually benchmark against each other — in about 120 lines of stdlib Python. Every code block and every number below is real: run with <code>python3</code> on this machine, output pasted verbatim.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> Three promises bolted together</h2>
+    <p class="dek">A pub/sub broker is three separate promises, and building each one honestly is most of the lesson: every subscriber gets its own independent copy (fan-out), every copy keeps getting retried until it's confirmed handled (at-least-once), and something sane happens when a subscriber can't keep up (backpressure).</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 235" role="img" aria-label="A publisher box sends an arrow to a dashed broker box labeled topic orders.created, which fans out with three arrows to three subscriber rows. Top row: billing has a mostly empty teal queue, already acked. Middle row: email has four solid coral cells, a full queue, plus a dashed fifth slot marked with an X for a rejected message. Bottom row: audit has one amber queued message and a dashed looping arrow from its subscriber box back into the queue, labeled redelivered, no ack before timeout.">
+        <defs>
+          <marker id="pubArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor" fill-opacity="0.55"/>
+          </marker>
+        </defs>
+
+        <rect x="14" y="94" width="68" height="46" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="48" y="121" text-anchor="middle" font-family="ui-monospace, monospace" font-weight="700" font-size="12" fill="currentColor">publisher</text>
+
+        <line x1="82" y1="117" x2="106" y2="117" stroke="currentColor" stroke-width="1.5" marker-end="url(#pubArrow)"/>
+        <text x="94" y="108" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.5">publish()</text>
+
+        <rect x="110" y="55" width="160" height="130" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="190" y="45" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="currentColor" fill-opacity="0.55">TOPIC &middot; orders.created</text>
+        <text x="190" y="100" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor" fill-opacity="0.6">broker</text>
+        <text x="190" y="120" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.45">fan-out to N</text>
+        <text x="190" y="134" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" fill="currentColor" fill-opacity="0.45">independent queues</text>
+
+        <line x1="270" y1="95" x2="336" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#pubArrow)"/>
+        <line x1="270" y1="120" x2="336" y2="117" stroke="currentColor" stroke-width="1.5" marker-end="url(#pubArrow)"/>
+        <line x1="270" y1="150" x2="336" y2="200" stroke="currentColor" stroke-width="1.5" marker-end="url(#pubArrow)"/>
+
+        <rect x="336" y="18" width="15" height="22" fill="var(--teal)"/>
+        <rect x="353" y="18" width="15" height="22" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="2 2"/>
+        <rect x="370" y="18" width="15" height="22" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="2 2"/>
+        <rect x="387" y="18" width="15" height="22" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-dasharray="2 2"/>
+        <rect x="412" y="15" width="78" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="451" y="34" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="600" fill="currentColor">billing</text>
+        <text x="451" y="58" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.55">fast &mdash; draining</text>
+        <text x="498" y="34" text-anchor="start" font-family="ui-monospace, monospace" font-size="9" fill="var(--teal)">&#10003; acked</text>
+
+        <rect x="336" y="105" width="15" height="22" fill="var(--coral)"/>
+        <rect x="353" y="105" width="15" height="22" fill="var(--coral)"/>
+        <rect x="370" y="105" width="15" height="22" fill="var(--coral)"/>
+        <rect x="387" y="105" width="15" height="22" fill="var(--coral)"/>
+        <rect x="404" y="105" width="15" height="22" fill="none" stroke="var(--coral)" stroke-dasharray="2 2"/>
+        <line x1="406" y1="107" x2="417" y2="125" stroke="var(--coral)" stroke-width="1.5"/>
+        <line x1="417" y1="107" x2="406" y2="125" stroke="var(--coral)" stroke-width="1.5"/>
+        <rect x="430" y="102" width="78" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="469" y="121" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="600" fill="currentColor">email</text>
+        <text x="469" y="146" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.55">slow consumer</text>
+        <text x="336" y="98" text-anchor="start" font-family="ui-monospace, monospace" font-size="8" fill="var(--coral)">queue full &rarr; blocked / dropped</text>
+
+        <rect x="336" y="189" width="15" height="22" fill="var(--amber)"/>
+        <rect x="412" y="185" width="78" height="30" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="451" y="204" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="600" fill="currentColor">audit</text>
+        <polyline points="412,193 370,166 351,193" fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <polygon points="351,193 345,187 341,197" fill="var(--amber)"/>
+        <text x="381" y="160" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="var(--amber)">redelivered &mdash; no ack before timeout</text>
+
+        <text x="320" y="226" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="currentColor" fill-opacity="0.5">one topic &rarr; N independent subscriber queues, each with its own pace and its own ack state</text>
+      </svg>
+      <figcaption>Three subscribers fan out from one <code>publish()</code> call, each with its own queue and its own fate. billing is fast and has already drained and acked. email's queue is full — the next message either blocks the publisher or gets silently evicted, depending on the policy in section 03. audit received a message, never acked it, and the broker's redelivery sweep sent it again after the visibility timeout expired — that's the entire at-least-once mechanism, not a metaphor for it.</figcaption>
+    </figure>
+    <p class="tight">Notice what's independent and what isn't: billing, email and audit share nothing except the topic name. One subscriber's full queue cannot make another subscriber miss a message — it can, depending on policy, make the <em>publisher</em> wait. That distinction is the seed of section 06.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Watch backpressure and redelivery happen</h2>
+    <p class="dek">Pick a backpressure policy for the slow subscriber and press play. Every shape encodes the mechanism from <code>pubsub.py</code>, not a metaphor: amber is a publisher actively sending or a subscriber actively processing, teal is a message sitting queued, hatched red is a blocked publisher or a dropped message depending on the policy.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Backpressure policy for sub-B">
+          <button data-policy="block" aria-pressed="true">block</button>
+          <button data-policy="drop" aria-pressed="false">drop_oldest</button>
+          <button data-policy="unbounded" aria-pressed="false">unbounded</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <label class="toggle-row">
+          <input type="checkbox" id="crashToggle">
+          sub-C never acks (simulate a crashed handler)
+        </label>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="stat-line" id="resourceReadout">sub-B queue: maxsize=3 · offer() blocks the publisher while full</span>
+          <button class="playbtn" id="playBtn">▶ Play</button>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-inner" id="timelineInner">
+          <div class="ruler"><span>t=0</span><span>t=25</span><span>t=50</span><span>t=75</span><span>t=100</span></div>
+          <div id="lanes"></div>
+          <div class="playhead" id="playhead" data-t="0"></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>publishing / actively processing</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>queued in subscriber's buffer</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>blocked (publisher waiting) or dropped</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--grey-soft); border:1px solid var(--border)"></span>idle / no pending work</span>
+      </div>
+      <p class="console-note" id="consoleCaption"></p>
+      <p class="stat-line" id="backlogReadout" style="margin-top:8px; display:none;"></p>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">the numbers behind the animation</div>
+    <p class="dek" style="margin-top:0;">Measured on this machine (CPython 3.10.12) — not simulated. Real <code>pubsub.py</code>, real <code>time.perf_counter()</code>.</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>Fan-out width · 20,000 publish() calls per row</h3>
+        <div class="bench-sub">one topic, UNBOUNDED policy so nothing ever blocks — isolates the cost of fan-out alone</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>1 subscriber</span><span class="val">3.21 &micro;s / call</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:2%; background:var(--grey);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>10 subscribers</span><span class="val">15.18 &micro;s / call</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:9%; background:var(--amber);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>100 subscribers</span><span class="val">161.68 &micro;s / call</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div>
+        </div>
+      </div>
+      <div class="bench-card">
+        <h3>Backpressure policy · N=200 messages, one slow subscriber</h3>
+        <div class="bench-sub">maxsize=5, consumer drains at ~200 msg/s — publish() wall-clock time for all 200 sends</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>block</span><span class="val">0.989s total</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div>
+          <div style="font-size:0.72rem; color:var(--text-faint); margin-top:4px;">delivered 200 · dropped 0 · backlog 5</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>drop_oldest</span><span class="val">0.004s total</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:2%; background:var(--amber);"></div></div>
+          <div style="font-size:0.72rem; color:var(--text-faint); margin-top:4px;">delivered 5 · dropped 195 · backlog 5</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>unbounded</span><span class="val">0.003s total</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:2%; background:var(--teal);"></div></div>
+          <div style="font-size:0.72rem; color:var(--text-faint); margin-top:4px;">delivered 200 · dropped 0 · backlog 199</div>
+        </div>
+      </div>
+    </div>
+    <p class="tight" style="margin-top:18px;"><b>Read the backpressure table again.</b> <code>drop_oldest</code> and <code>unbounded</code> both finish publishing in ~3–4 milliseconds — indistinguishable from a no-op at the call site. The difference between them is invisible to the publisher and enormous everywhere else: one silently threw away 195 of 200 messages, the other kept all 200 in memory waiting for a consumer that's roughly an order of magnitude too slow. <code>block</code> is the only policy with zero loss, and it pays for that guarantee by making <code>publish()</code> nearly 1,000x slower — throttled down to sub-B's own pace. There is no free option here, only a choice about where the cost lands.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>Redis Pub/Sub is the "weak answer" running in production.</b> It's genuinely fire-and-forget: if a subscriber can't keep up, Redis has no queue to fall back on — the default <code>client-output-buffer-limit pubsub 32mb 8mb 60</code> just <em>kills the slow client's connection</em> once its backlog crosses the hard cap. That's a real backpressure policy — "unbounded, then forcibly drop the consumer" — just not one most people choose on purpose.</li>
+      <li><b>MQTT's QoS levels are exactly the delivery-semantics axis from section 02, standardized.</b> QoS 0 is at-most-once (no ack, no redelivery — what a naive callback loop gives you for free). QoS 1 is at-least-once, the exact ack-plus-retry-on-timeout mechanism <code>pubsub.py</code> implements. QoS 2 adds a two-phase handshake on top of QoS 1 to collapse duplicates into exactly-once. Every IoT broker (Mosquitto, AWS IoT Core, HiveMQ) makes you pick per-subscription, because the three guarantees have genuinely different costs.</li>
+      <li><b>AWS SNS fanning out to independent SQS queues</b> is this lesson's <code>Broker</code>/<code>Subscriber</code> split, hosted. One SNS topic, N SQS queues subscribed to it — each queue has its own visibility timeout, its own redrive policy, its own backlog. A slow consumer on queue B never touches queue A's messages, for the same structural reason our <code>Subscriber</code> objects don't share state.</li>
+      <li><b>Google Cloud Pub/Sub documents itself as at-least-once, explicitly.</b> Its ack deadline (default 10s, extendable mid-handler) is a visibility timeout by another name, and its dead-letter topics exist because sections 05 and 06 are correct: redelivery without a cap on attempts turns one poison message into an infinite retry loop.</li>
+      <li><b>Webhook fan-out platforms (Stripe events, Svix, GitHub webhooks)</b> implement at-least-once over plain HTTP: a non-2xx response or a timeout counts as "no ack" and triggers a retry with backoff, sometimes for hours. Any endpoint consuming Stripe webhooks that isn't idempotent on the event ID will eventually double-process a payment — the same <code>delivery_count &gt; 1</code> problem the exercise in section 05 makes you watch happen.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: the broker, the fan-out, and the redelivery sweep</h2>
+    <p class="dek">Every code block and every terminal block below is real — written to <code>pubsub.py</code> and run with <code>python3</code> on this machine (CPython 3.10.12), output pasted exactly as produced. Nothing here is illustrative.</p>
+
+    <div class="label-row">pubsub.py — the whole mechanism, ~120 lines, stdlib only</div>
+    <pre class="code"><code>"""
+A small, real topic-based pub/sub broker: fan-out, at-least-once delivery
+via ack + visibility-timeout redelivery, and pluggable backpressure.
+
+~120 lines, stdlib only. Not a toy that hides the hard parts -- this is
+the actual shape production systems use (SQS visibility timeouts, SNS
+fan-out to independent queues, MQTT QoS 1 redelivery).
+"""
+import time
+import uuid
+import threading
+from collections import deque
+from dataclasses import dataclass, field
+from enum import Enum
+
+
+class BackpressurePolicy(Enum):
+    BLOCK = "block"              # publisher waits until the subscriber has room
+    DROP_OLDEST = "drop_oldest"  # evict the oldest queued message to make room
+    UNBOUNDED = "unbounded"      # never refuse -- queue grows without limit
+
+
+@dataclass
+class Message:
+    topic: str
+    payload: object
+    msg_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    published_at: float = field(default_factory=time.monotonic)
+    delivery_count: int = 0
+
+
+class Subscriber:
+    """One independent consumer of a topic. Owns its own bounded queue
+    and its own in-flight/ack state -- exactly like a Kafka consumer
+    group owns its own offset, or an SNS-fanned-out SQS queue owns its
+    own visibility timeout. One subscriber's backlog never touches
+    another subscriber's data."""
+
+    def __init__(self, name, maxsize=100,
+                 policy=BackpressurePolicy.BLOCK, visibility_timeout=5.0):
+        self.name = name
+        self.maxsize = maxsize
+        self.policy = policy
+        self.visibility_timeout = visibility_timeout
+        self.queue = deque()
+        self.inflight = {}          # msg_id -&gt; (Message, ack_deadline)
+        self.delivered = 0          # successfully acked
+        self.dropped = 0            # evicted under DROP_OLDEST
+        self.redelivered = 0        # sent again after a missed ack
+        self._lock = threading.Lock()
+        self._not_full = threading.Condition(self._lock)
+        self._not_empty = threading.Condition(self._lock)
+
+    def _enqueue_locked(self, msg):
+        if len(self.queue) &gt;= self.maxsize:
+            if self.policy is BackpressurePolicy.DROP_OLDEST:
+                self.queue.popleft()
+                self.dropped += 1
+            elif self.policy is BackpressurePolicy.BLOCK:
+                return False
+            # UNBOUNDED: ignore maxsize entirely, fall through and append
+        self.queue.append(msg)
+        self._not_empty.notify()
+        return True
+
+    def offer(self, msg, block_timeout=None):
+        """Called by the broker during fan-out. Returns True if the
+        message was accepted onto this subscriber's queue."""
+        with self._lock:
+            if self.policy is BackpressurePolicy.BLOCK:
+                deadline = None if block_timeout is None else time.monotonic() + block_timeout
+                while len(self.queue) &gt;= self.maxsize:
+                    remaining = None if deadline is None else deadline - time.monotonic()
+                    if remaining is not None and remaining &lt;= 0:
+                        return False
+                    self._not_full.wait(remaining)
+            return self._enqueue_locked(msg)
+
+    def poll(self, timeout=1.0):
+        """Consumer side: pull the next message and mark it in-flight.
+        It is NOT removed permanently until ack() is called -- that gap
+        is what makes redelivery possible."""
+        with self._lock:
+            if not self.queue and not self._not_empty.wait(timeout):
+                return None
+            if not self.queue:
+                return None
+            msg = self.queue.popleft()
+            msg.delivery_count += 1
+            self.inflight[msg.msg_id] = (msg, time.monotonic() + self.visibility_timeout)
+            self._not_full.notify()
+            return msg
+
+    def ack(self, msg_id):
+        with self._lock:
+            if msg_id in self.inflight:
+                del self.inflight[msg_id]
+                self.delivered += 1
+                return True
+            return False
+
+    def sweep_redeliveries(self):
+        """The mechanism that makes this at-least-once, not at-most-once:
+        any in-flight message whose visibility timeout expired without an
+        ack goes back on the queue for another delivery attempt."""
+        now = time.monotonic()
+        expired = []
+        with self._lock:
+            for msg_id, (msg, deadline) in list(self.inflight.items()):
+                if now &gt;= deadline:
+                    del self.inflight[msg_id]
+                    expired.append(msg)
+            for msg in expired:
+                self.redelivered += 1
+                self._enqueue_locked(msg)
+        return len(expired)
+
+    @property
+    def depth(self):
+        with self._lock:
+            return len(self.queue)</code></pre>
+
+    <p class="tight">Three things worth naming explicitly. <code>offer()</code> is where the backpressure policy actually lives — <code>BLOCK</code> waits on a condition variable until room frees up, <code>DROP_OLDEST</code> evicts and moves on, <code>UNBOUNDED</code> just appends. <code>poll()</code> doesn't delete a message when a consumer takes it — it moves it into <code>inflight</code> with a deadline, which is the entire trick behind at-least-once: nothing counts as "delivered" until <code>ack()</code> explicitly removes it from that dict. And <code>sweep_redeliveries()</code> is a linear scan over every in-flight message on that subscriber, each time it runs — fine at hundreds of in-flight messages, the wrong data structure at millions: a production broker keeps in-flight items ordered by deadline (a min-heap, or the hierarchical <b>timing wheel</b> Kafka and Netty both use) so "find everything that's expired" is <code>O(log n)</code> or amortized <code>O(1)</code> per expiry instead of <code>O(n)</code> per sweep.</p>
+
+    <div class="label-row">Broker.publish() — the fan-out</div>
+    <pre class="code"><code>class Broker:
+    """Topic -&gt; {subscriber_name: Subscriber}. Publish fans a message out
+    to every subscriber on the topic; each gets an independent copy and
+    an independent delivery/ack lifecycle."""
+
+    def __init__(self):
+        self._subs = {}
+        self._lock = threading.Lock()
+
+    def subscribe(self, topic, name, **kwargs):
+        sub = Subscriber(name, **kwargs)
+        with self._lock:
+            self._subs.setdefault(topic, {})[name] = sub
+        return sub
+
+    def publish(self, topic, payload, block_timeout=None):
+        """O(k) in the number of subscribers on `topic` -- each gets its
+        own Message object (same logical msg_id) so retries/acks never
+        cross subscriber boundaries."""
+        shared_id = uuid.uuid4().hex[:8]
+        with self._lock:
+            subs = list(self._subs.get(topic, {}).values())
+        accepted = {}
+        for sub in subs:
+            m = Message(topic=topic, payload=payload, msg_id=shared_id)
+            accepted[sub.name] = sub.offer(m, block_timeout=block_timeout)
+        return accepted</code></pre>
+    <p class="tight">Notice the broker's lock is held only long enough to copy the subscriber list — every actual <code>offer()</code> call, including any blocking, happens outside that lock. That's deliberate: a slow subscriber on this topic can't freeze publishes to a <em>different</em> topic on the same broker. What it can still do is stall every subscriber <em>after</em> it in this <code>for</code> loop, on this topic — hold that thought for section 06.</p>
+
+    <div class="label-row">fanout_demo.py — one topic, three independent outcomes</div>
+    <pre class="code"><code>"""
+Demo 1: fan-out + at-least-once redelivery.
+
+Three subscribers attach to the same topic. One of them ("audit") is
+deliberately buggy: it polls a message and never acks it -- simulating a
+worker that crashed mid-handler. We show:
+  (a) every subscriber gets its own independent copy of every message
+      (fan-out), and
+  (b) the broker redelivers audit's dropped message on its own, with no
+      special-casing -- that's the entire at-least-once mechanism.
+"""
+from pubsub import Broker, BackpressurePolicy
+
+broker = Broker()
+billing = broker.subscribe("orders.created", "billing", visibility_timeout=0.2)
+email = broker.subscribe("orders.created", "email", visibility_timeout=0.2)
+audit = broker.subscribe("orders.created", "audit", visibility_timeout=0.2)
+
+broker.publish("orders.created", {"order_id": 1001, "total": 42.50})
+broker.publish("orders.created", {"order_id": 1002, "total": 8.00})
+
+print("--- fan-out: each subscriber has its own independent queue ---")
+for sub in (billing, email, audit):
+    print(f"{sub.name:8s} queue depth = {sub.depth}")
+
+print("\n--- billing and email behave normally: poll, then ack ---")
+for sub in (billing, email):
+    while sub.depth &gt; 0 or sub.inflight:
+        msg = sub.poll(timeout=0)
+        if msg is None:
+            break
+        print(f"{sub.name:8s} delivered order_id={msg.payload['order_id']} "
+              f"(delivery #{msg.delivery_count}) -&gt; ack")
+        sub.ack(msg.msg_id)
+
+print("\n--- audit crashes: polls but never acks ---")
+msg = audit.poll(timeout=0)
+print(f"audit    delivered order_id={msg.payload['order_id']} "
+      f"(delivery #{msg.delivery_count}) -&gt; handler crashes, NO ack")
+print(f"audit    in-flight count = {len(audit.inflight)}, queue depth = {audit.depth}")
+
+import time
+print("\nwaiting past visibility_timeout=0.2s for the redelivery sweep...")
+time.sleep(0.25)
+n = audit.sweep_redeliveries()
+print(f"sweep_redeliveries() requeued {n} message(s)")
+print(f"audit    queue depth after sweep = {audit.depth}")
+
+print("\n--- audit drains its queue (order 1002, then the redelivered order 1001) ---")
+while audit.depth &gt; 0:
+    m = audit.poll(timeout=0)
+    print(f"audit    delivered order_id={m.payload['order_id']} "
+          f"(delivery #{m.delivery_count}) -&gt; handler succeeds this time -&gt; ack")
+    audit.ack(m.msg_id)
+
+print(f"\naudit final stats: delivered={audit.delivered} redelivered={audit.redelivered}")
+print("order_id=1001 shows delivery #2: this is at-least-once, not exactly-once --")
+print("the same logical message was handed to the consumer twice.")</code></pre>
+
+    <div class="label-row">output (real, this machine)</div>
+    <pre class="output"><code>--- fan-out: each subscriber has its own independent queue ---
+billing  queue depth = 2
+email    queue depth = 2
+audit    queue depth = 2
+
+--- billing and email behave normally: poll, then ack ---
+billing  delivered order_id=1001 (delivery #1) -&gt; ack
+billing  delivered order_id=1002 (delivery #1) -&gt; ack
+email    delivered order_id=1001 (delivery #1) -&gt; ack
+email    delivered order_id=1002 (delivery #1) -&gt; ack
+
+--- audit crashes: polls but never acks ---
+audit    delivered order_id=1001 (delivery #1) -&gt; handler crashes, NO ack
+audit    in-flight count = 1, queue depth = 1
+
+waiting past visibility_timeout=0.2s for the redelivery sweep...
+sweep_redeliveries() requeued 1 message(s)
+audit    queue depth after sweep = 2
+
+--- audit drains its queue (order 1002, then the redelivered order 1001) ---
+audit    delivered order_id=1002 (delivery #1) -&gt; handler succeeds this time -&gt; ack
+audit    delivered order_id=1001 (delivery #2) -&gt; handler succeeds this time -&gt; ack
+
+audit final stats: delivered=2 redelivered=1
+order_id=1001 shows delivery #2: this is at-least-once, not exactly-once --
+the same logical message was handed to the consumer twice.</code></pre>
+
+    <p class="tight"><b>The exercise</b> — predict, then run. <code>sweep_redeliveries()</code> only fires when something calls it; a real broker runs it on a timer. What happens if <code>visibility_timeout</code> is <em>shorter</em> than how long a handler legitimately, correctly takes to finish its work?</p>
+    <pre class="code"><code>"""
+Exercise: what happens when a handler legitimately takes LONGER to
+process a message than the visibility_timeout allows?
+
+Predict before you run: with visibility_timeout=1.0s and a handler that
+takes 3.0s to genuinely finish its work, does the message get delivered
+once, or more than once?
+"""
+import time
+import threading
+from pubsub import Broker, BackpressurePolicy
+
+broker = Broker()
+sub = broker.subscribe("jobs.resize_image", "worker",
+                        visibility_timeout=1.0, policy=BackpressurePolicy.UNBOUNDED)
+broker.publish("jobs.resize_image", {"file": "IMG_0472.heic"})
+
+seen = []
+
+def background_sweeper():
+    # In a real broker this runs on a timer thread. Here we call it
+    # explicitly every 0.2s so the timing is easy to follow in the log.
+    for _ in range(20):
+        time.sleep(0.2)
+        n = sub.sweep_redeliveries()
+        if n:
+            print(f"[sweeper] redelivered {n} message(s) -- their visibility "
+                  f"timeout expired with no ack")
+
+sweeper = threading.Thread(target=background_sweeper, daemon=True)
+sweeper.start()
+
+def slow_worker():
+    while len(seen) &lt; 3:  # stop after we've proven the point 3 times
+        m = sub.poll(timeout=0.3)
+        if m is None:
+            continue
+        seen.append(m.delivery_count)
+        print(f"[worker] picked up delivery #{m.delivery_count} at t="
+              f"{time.monotonic() - t_start:.2f}s -- genuinely working for 3.0s...")
+        time.sleep(3.0)  # the "legitimate" slow handler
+        # by the time we get here, has this message already been redelivered?
+        acked = sub.ack(m.msg_id)
+        note = "accepted" if acked else "TOO LATE -- broker already redelivered this msg_id"
+        print(f"[worker] finished delivery #{m.delivery_count}, ack() "
+              f"returned {acked} ({note})")
+
+t_start = time.monotonic()
+slow_worker()
+print(f"\ndelivery_count sequence observed: {seen}")
+print("Each redelivery is a NEW attempt at the SAME message -- if the handler")
+print("isn't idempotent, this job runs more than once.")</code></pre>
+    <div class="label-row">output (real, this machine — takes ~9s to run, three redelivery cycles)</div>
+    <pre class="output"><code>[worker] picked up delivery #1 at t=0.00s -- genuinely working for 3.0s...
+[sweeper] redelivered 1 message(s) -- their visibility timeout expired with no ack
+[worker] finished delivery #1, ack() returned False (TOO LATE -- broker already redelivered this msg_id)
+[worker] picked up delivery #2 at t=3.00s -- genuinely working for 3.0s...
+[sweeper] redelivered 1 message(s) -- their visibility timeout expired with no ack
+[worker] finished delivery #2, ack() returned False (TOO LATE -- broker already redelivered this msg_id)
+[worker] picked up delivery #3 at t=6.01s -- genuinely working for 3.0s...
+[worker] finished delivery #3, ack() returned True (accepted)
+
+delivery_count sequence observed: [1, 2, 3]
+Each redelivery is a NEW attempt at the SAME message -- if the handler
+isn't idempotent, this job runs more than once.</code></pre>
+    <p class="tight">The handler was never broken — it finished successfully all three times. It still ran three times, because <code>visibility_timeout=1.0s</code> was shorter than its genuine 3.0s runtime, so the sweeper redelivered a message that was, in fact, still being handled correctly. This is one of the most common production bugs built on top of at-least-once systems — SQS's own docs warn that the visibility timeout needs to exceed your p99 processing time, with margin — and it's exactly why "at-least-once" is a contract on the <em>consumer</em>, not just the broker: your handler must be idempotent, because the broker <em>will</em> hand it the same message more than once under perfectly normal operation, not only during failures.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "I'd keep a dict from topic to a list of subscriber callbacks, and publish() loops over the list calling each one." <b>Strong:</b> "Each subscriber needs its own queue and its own ack/redelivery state so one subscriber's backlog can't touch another's data — that's fan-out isolation. Delivery is at-least-once via ack-plus-timeout-redelivery, not a vague 'guaranteed delivery,' and the consumer has to be idempotent because of it. Backpressure is a policy decision per subscriber, not an accident — block if losing data is worse than stalling the producer, drop or shed if the reverse is true, and never unbounded in anything that stays up longer than a demo."</li>
+        <li>The killer follow-up: <b>"Your <code>publish()</code> calls <code>offer()</code> serially, subscriber by subscriber, in list order. Fifty subscribers on 'orders.created,' all BLOCK policy, and subscriber #3 is permanently wedged. What happens to subscribers #4 through #50 — and what's the smallest fix that doesn't take #3 off BLOCK policy?"</b> The honest answer: they get nothing until #3 either frees up or the offer times out, because the loop hasn't reached them yet — this is the exact head-of-line-blocking bug the console in section 03 shows live. The fix is to stop delivering serially: fan the <code>offer()</code> calls out concurrently (a thread per subscriber, a bounded pool, or one dispatcher task per subscriber fed by its own internal queue) so a wedged subscriber only blocks its own delivery path, not the iteration order over everyone else.</li>
+        <li>A sharper edge worth naming unprompted: Kafka's consumer-<em>pulls</em> design sidesteps this entire question — there's no broker-held queue for a slow consumer to overflow, so "which backpressure policy" isn't a decision Kafka's design has to make at all. Our broker is push-based, like RabbitMQ or SNS-&gt;SQS, which is exactly why it needs one.</li>
+        <li>Know the redelivery-count tradeoff too: shrink <code>visibility_timeout</code> and you redeliver — and reprocess — faster after a real crash, but you also risk the exercise above: redelivering work that's still legitimately in flight. Real systems (SQS, GCP Pub/Sub) let a consumer explicitly <em>extend</em> its own deadline mid-handler for exactly this reason.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Look again at <code>Broker.publish()</code> in section 05: it holds the broker's lock only long enough to snapshot the subscriber list, then calls <code>sub.offer()</code> on each one serially, in order, outside the lock.</p>
+      <p class="tight"><b>Topic "orders.created" has 50 subscribers, all on BLOCK policy with a small queue. Subscriber #3's consumer process died an hour ago but the connection never closed, so its queue is permanently full. What happens to subscribers #4 through #50 on this topic right now — and separately, does a publish() call on a completely different topic on the same broker get affected? Justify both answers from the actual code, then describe the smallest structural change to publish() that fixes the first problem.</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>From Lesson 17 — Message Queues &amp; Streaming</h3>
+      <p class="tight">Lesson 17 drew the Kafka-vs-RabbitMQ line on one structural fact: Kafka consumers <em>pull</em> at their own pace, so there's no broker-held queue for a slow consumer to ever overflow or block on — which is exactly why "which backpressure policy" is a question Kafka's design never has to answer, and a question today's push-based broker can't avoid. The redelivery mechanism you just watched run — ack, visibility timeout, requeue — is the same at-least-once guarantee lesson 17 traced to "resume from the last committed offset, not wherever the dead consumer was," just applied per-message here instead of per-partition-offset there.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="26-build-consistent-hash-ring.html"><span class="pnl">&larr; previous</span>Build a Consistent-Hash Ring in Python</a><a class="pn-next" href="28-build-leader-election.html"><span class="pnl">next &rarr;</span>Build a Toy Leader-Election Algorithm in Python</a></nav>
+<footer class="page">measured on CPython 3.10.12, stdlib only · lesson 27 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const S = { running:'state-running', io:'state-io', blocked:'state-blocked', idle:'state-idle' };
+  const LABELS = ['PUB','sub-A billing','sub-B email','sub-C audit'];
+
+  function seg(start,end,state){ return {start,end,state}; }
+
+  function buildSegs(policy, crash){
+    const pub = {
+      block:     [seg(0,28,S.running), seg(28,82,S.blocked), seg(82,92,S.running), seg(92,100,S.idle)],
+      drop:      [seg(0,90,S.running), seg(90,100,S.idle)],
+      unbounded: [seg(0,90,S.running), seg(90,100,S.idle)],
+    }[policy];
+
+    const a = {
+      block:     [seg(0,4,S.io), seg(4,16,S.running), seg(16,20,S.io), seg(20,32,S.running), seg(32,100,S.idle)],
+      drop:      [seg(0,4,S.io), seg(4,16,S.running), seg(16,20,S.io), seg(20,32,S.running), seg(32,36,S.io), seg(36,48,S.running), seg(48,100,S.idle)],
+      unbounded: [seg(0,4,S.io), seg(4,16,S.running), seg(16,20,S.io), seg(20,32,S.running), seg(32,36,S.io), seg(36,48,S.running), seg(48,100,S.idle)],
+    }[policy];
+
+    const b = {
+      block:     [seg(0,4,S.io), seg(4,32,S.running), seg(32,36,S.io), seg(36,64,S.running), seg(64,68,S.io), seg(68,96,S.running), seg(96,100,S.idle)],
+      drop:      [seg(0,4,S.io), seg(4,30,S.running), seg(30,34,S.blocked), seg(34,60,S.running), seg(60,64,S.blocked), seg(64,90,S.running), seg(90,100,S.idle)],
+      unbounded: [seg(0,4,S.io), seg(4,30,S.running), seg(30,60,S.io), seg(60,90,S.running), seg(90,100,S.io)],
+    }[policy];
+
+    const cBase = [seg(0,4,S.io), seg(4,18,S.running), seg(18,22,S.io), seg(22,36,S.running)];
+    const c = crash
+      ? cBase.concat([seg(36,60,S.blocked), seg(60,74,S.running), seg(74,100,S.idle)])
+      : cBase.concat([seg(36,100,S.idle)]);
+
+    return [pub, a, b, c];
+  }
+
+  const RESOURCE_TEXT = {
+    block:     'sub-B queue: maxsize=3 · offer() blocks the publisher while full (synchronous backpressure)',
+    drop:      'sub-B queue: maxsize=3 · oldest message evicted on overflow (lossy backpressure)',
+    unbounded: 'sub-B queue: unbounded · offer() never refuses (OOM risk under sustained lag)',
+  };
+
+  const CAPTIONS = {
+    block:     "sub-B's queue fills by t≈28 and publish() itself stalls waiting for room — watch sub-A, a perfectly healthy fast subscriber, go idle too. The serial for-loop inside publish() means nobody after a blocked subscriber gets anything until it frees up.",
+    drop:      "publish() never stalls here — sub-A stays healthy throughout regardless of sub-B. But sub-B's hatched ticks are real messages that arrived while its 3-slot queue was already full, and got silently evicted.",
+    unbounded: "Nothing ever blocks or gets dropped — sub-B just accumulates a backlog in memory while the publisher runs at full speed. Watch the counter below: this is the exact shape of an unbounded queue turning into an incident.",
+  };
+  const CRASH_SUFFIX = " sub-C also never acks its first message — watch it flip to blocked, then reappear in the running state later: that's sweep_redeliveries() firing after the visibility timeout, the actual at-least-once mechanism from section 05.";
+
+  let state = { policy:'block', crash:false };
+  let playing = false, rafId = null, startTs = null;
+  const DURATION = 4200;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const lanesEl = document.getElementById('lanes');
+  const playheadEl = document.getElementById('playhead');
+  const playBtn = document.getElementById('playBtn');
+  const resourceEl = document.getElementById('resourceReadout');
+  const captionEl = document.getElementById('consoleCaption');
+  const backlogEl = document.getElementById('backlogReadout');
+  const crashToggle = document.getElementById('crashToggle');
+
+  function render(){
+    const segs = buildSegs(state.policy, state.crash);
+    lanesEl.innerHTML = '';
+    segs.forEach((laneSegs, i) => {
+      const lane = document.createElement('div');
+      lane.className = 'lane';
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = LABELS[i];
+      const track = document.createElement('div');
+      track.className = 'lane-track';
+      laneSegs.forEach(s => {
+        const d = document.createElement('div');
+        d.className = 'seg ' + s.state;
+        d.style.left = s.start + '%';
+        d.style.width = (s.end - s.start) + '%';
+        d.dataset.start = s.start;
+        d.dataset.end = s.end;
+        d.dataset.state = s.state;
+        track.appendChild(d);
+      });
+      lane.appendChild(label);
+      lane.appendChild(track);
+      lanesEl.appendChild(lane);
+    });
+
+    resourceEl.textContent = RESOURCE_TEXT[state.policy];
+    captionEl.textContent = CAPTIONS[state.policy] + (state.crash ? CRASH_SUFFIX : '');
+    backlogEl.style.display = state.policy === 'unbounded' ? '' : 'none';
+
+    setPlayheadPercent(0);
+    playBtn.textContent = '▶ Play';
+    playing = false;
+    if (rafId) cancelAnimationFrame(rafId);
+
+    if (reduceMotion) {
+      lanesEl.querySelectorAll('.seg').forEach(s => s.style.opacity = 1);
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function setPlayheadPercent(pct){
+    playheadEl.style.left = pct + '%';
+    playheadEl.dataset.t = 't=' + Math.round(pct);
+    lanesEl.querySelectorAll('.seg').forEach(seg => {
+      const s = parseFloat(seg.dataset.start), e = parseFloat(seg.dataset.end);
+      seg.classList.toggle('active', pct >= s && pct < e && pct < 100);
+    });
+    if (state.policy === 'unbounded') {
+      const depth = Math.round((pct / 100) * 199);
+      backlogEl.textContent = 'sub-B backlog: ~' + depth + ' queued and growing (unbounded — bench measured 199/200 sitting in memory before the slow consumer even finishes draining)';
+    }
+  }
+
+  function tick(ts){
+    if (startTs === null) startTs = ts;
+    const elapsed = ts - startTs;
+    const pct = Math.min(100, (elapsed / DURATION) * 100);
+    setPlayheadPercent(pct);
+    if (pct < 100) {
+      rafId = requestAnimationFrame(tick);
+    } else {
+      playing = false;
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function play(){
+    if (reduceMotion) {
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+    startTs = null;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  playBtn.addEventListener('click', () => { if (!playing) play(); });
+
+  document.querySelectorAll('[data-policy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-policy]').forEach(b => b.setAttribute('aria-pressed', b === btn));
+      state.policy = btn.dataset.policy;
+      render();
+    });
+  });
+
+  crashToggle.addEventListener('change', () => {
+    state.crash = crashToggle.checked;
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

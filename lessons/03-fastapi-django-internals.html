@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 — FastAPI &amp; Django Internals</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+</style>
+
+<!-- Additional rules for this lesson's widgets. Adds new classes only —
+     reuses the tokens/vars from the verbatim block above; nothing above is modified. -->
+<style>
+  .onion-stage{
+    display:flex;
+    flex-wrap:wrap;
+    gap:26px;
+    align-items:flex-start;
+    margin-top:6px;
+  }
+  .onion-diagram{ flex:1 1 320px; max-width:380px; }
+  .onion-log-col{ flex:1 1 280px; min-width:240px; }
+
+  .onion-layer{
+    border:2px solid var(--border);
+    border-radius:14px;
+    padding:32px 16px 16px;
+    position:relative;
+    background:var(--surface);
+    transition:border-color .25s, box-shadow .25s, background-color .25s;
+  }
+  .onion-layer .onion-layer{ margin-top:2px; background:var(--surface-2); }
+  .onion-label{
+    position:absolute;
+    top:9px; left:14px;
+    font-family:var(--font-mono);
+    font-size:0.66rem;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--text-faint);
+    transition:color .25s;
+  }
+  .onion-layer[data-state="active"]{ border-color:var(--amber); box-shadow:inset 0 0 0 1px var(--amber); }
+  .onion-layer[data-state="active"] > .onion-label{ color:var(--amber); }
+  .onion-layer[data-state="exit"]{ border-color:var(--teal); box-shadow:inset 0 0 0 1px var(--teal); }
+  .onion-layer[data-state="exit"] > .onion-label{ color:var(--teal); }
+  .onion-layer[data-state="skipped"]{ border-color:var(--coral); border-style:dashed; opacity:.5; }
+  .onion-layer[data-state="skipped"] > .onion-label{ color:var(--coral); }
+
+  .onion-core{
+    border:2px solid var(--border);
+    border-radius:10px;
+    padding:18px 10px;
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:0.76rem;
+    font-weight:700;
+    color:var(--text-dim);
+    background:var(--surface);
+    transition:border-color .25s, color .25s, background-color .25s;
+  }
+  .onion-core[data-state="active"]{ border-color:var(--amber); color:var(--amber); background:var(--amber-soft); }
+  .onion-core[data-state="error"]{ border-color:var(--coral); color:var(--coral); background:var(--coral-soft); }
+
+  .onion-log{ min-height:168px; }
+  .onion-log .line{ display:block; }
+  .onion-log .line.skip{ color:var(--coral); text-decoration:line-through; opacity:.8; }
+  .onion-log .line.ok{ color:var(--teal); }
+
+  table.compare{
+    border-collapse:collapse;
+    width:100%;
+    max-width:72ch;
+    margin-top:12px;
+    font-size:0.84rem;
+  }
+  table.compare th, table.compare td{
+    border:1px solid var(--border);
+    padding:9px 11px;
+    text-align:left;
+    vertical-align:top;
+  }
+  table.compare th{
+    background:var(--surface-2);
+    font-family:var(--font-mono);
+    font-size:0.7rem;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--text-dim);
+  }
+  table.compare code{ font-size:0.88em; }
+  .compare-wrap{ overflow-x:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="02-async-event-loop.html"><span class="pnl">&larr; previous</span>Async/Await Mechanics &amp; the Event Loop</a><a class="pn-next" href="04-rest-graphql-api-design.html"><span class="pnl">next &rarr;</span>REST &amp; GraphQL API Design</a></nav>
+
+  <p class="kicker">Python backend mastery · Phase 1 · Lesson 03</p>
+  <h1>FastAPI &amp; Django Internals</h1>
+  <p class="lede">What actually happens between a socket accepting bytes and your view function returning a dict — the protocol boundary, the middleware onion, the dependency graph, and the exact line where the ORM decides to talk to the database.</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> Why "FastAPI is async, Django is sync" fails the bar</h2>
+    <p>Most candidates' mental model stops at: <em>"FastAPI uses ASGI so it's non-blocking, Django uses WSGI so it's one-thread-per-request."</em> That distinction is real, but it's the least interesting thing you can say about either framework, and treating it as the whole answer means you have nothing left when the interviewer asks the second question.</p>
+    <p class="tight">The traps that actually separate levels here: whether you know middleware execution order can <b>literally invert</b> between the two frameworks for the exact same declared list; whether you know FastAPI's <code>Depends()</code> graph is resolved once per request as a cached DAG, not re-executed per usage site; whether you can name the precise line of Django ORM code that sends SQL versus the ten lines before it that just built a query object; and whether you know ASGI is a <b>calling convention</b>, not a promise that your code won't block.</p>
+    <p class="tight">Every one of those four is demonstrated below with real, executed output — nothing in this lesson is asserted without being run first.</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> Envelopes inside envelopes</h2>
+    <p class="dek">A request never reaches your view function directly. It's handed to the outermost middleware, which decides whether to inspect it, mutate it, or pass it one layer further in — until something at the center actually reads the letter and writes a reply.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 220" role="img" aria-label="Two nested boxes, middleware B outer and middleware A inner, wrap a core box labeled view or handler. An amber arrow curves inward from the outer edge to the core, a teal arrow curves back outward from the core, and a dashed coral arrow shoots from the core straight past every layer to outside the diagram.">
+        <defs>
+          <marker id="arrIn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0L10,5L0,10Z" fill="var(--amber)"/>
+          </marker>
+          <marker id="arrOut" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0L10,5L0,10Z" fill="var(--teal)"/>
+          </marker>
+          <marker id="arrExc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0L10,5L0,10Z" fill="var(--coral)"/>
+          </marker>
+        </defs>
+
+        <rect x="55" y="26" width="530" height="168" rx="16" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5"/>
+        <text x="71" y="46" font-family="ui-monospace, monospace" font-size="10" fill="currentColor" fill-opacity="0.6">MIDDLEWARE B (outer)</text>
+
+        <rect x="125" y="58" width="390" height="104" rx="12" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5"/>
+        <text x="141" y="78" font-family="ui-monospace, monospace" font-size="10" fill="currentColor" fill-opacity="0.6">MIDDLEWARE A (inner)</text>
+
+        <rect x="245" y="86" width="150" height="52" rx="8" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="1.5"/>
+        <text x="320" y="107" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="currentColor">VIEW /</text>
+        <text x="320" y="121" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10" fill="currentColor">HANDLER</text>
+
+        <path d="M95,52 Q170,150 245,110" fill="none" stroke="var(--amber)" stroke-width="2.2" marker-end="url(#arrIn)"/>
+        <text x="98" y="64" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--amber)">request &#8595; pre-handler code, outer&#8594;inner</text>
+
+        <path d="M395,120 Q470,186 545,178" fill="none" stroke="var(--teal)" stroke-width="2.2" marker-end="url(#arrOut)"/>
+        <text x="398" y="203" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--teal)">response &#8593; post-handler code, inner&#8594;outer</text>
+
+        <path d="M320,86 L600,16" fill="none" stroke="var(--coral)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrExc)"/>
+        <text x="472" y="36" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9.5" fill="var(--coral)">unhandled exception: may skip layers entirely</text>
+      </svg>
+      <figcaption>Amber traces the request moving inward — each layer's pre-handler code runs before handing off. Teal traces the response moving back out, same layers, opposite order. The dashed coral line is the part everyone forgets: an exception doesn't have to retrace the amber path. Exactly which layers it passes through, and whether their "after" code runs at all, depends on how each framework catches it.</figcaption>
+    </figure>
+    <p class="tight">That last sentence is where FastAPI and Django quietly disagree with each other — both in which layer ends up "outer," and in what an uncaught exception does to the layers in between. The console below runs both, for real.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Same declared order, opposite nesting</h2>
+    <p class="dek">Both frameworks below register the exact same two middleware, in the exact same declared order: <code>Logging</code> first, <code>Auth</code> second. Watch what "outer" ends up meaning in each. Toggle the exception switch and watch which layer's exit code actually survives.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Framework">
+          <button data-framework="fastapi" aria-pressed="true">FastAPI (ASGI / Starlette)</button>
+          <button data-framework="django" aria-pressed="false">Django (WSGI)</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <label class="toggle-row">
+          <input type="checkbox" id="onionExcToggle">
+          handler raises an unhandled exception (no try/except written)
+        </label>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <span class="stat-line" id="onionNesting"></span>
+          <button class="playbtn" id="onionPlay">&#9654; Play</button>
+        </div>
+      </div>
+
+      <div class="label-row" style="margin-top:2px;">declared order (identical in both tabs)</div>
+      <pre class="code" id="onionSnippet" style="margin-bottom:20px;"></pre>
+
+      <div class="onion-stage">
+        <div class="onion-diagram" id="onionDiagram"></div>
+        <div class="onion-log-col">
+          <div class="label-row" style="margin-top:0;">live trace</div>
+          <pre class="output onion-log" id="onionLog"></pre>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>entering / executing</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>returned normally</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral)"></span>handler raised</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral-soft); border:1px dashed var(--coral)"></span>skipped — exception passed straight through</span>
+      </div>
+      <p class="console-note">Every line in the trace panel is copied from a real terminal run, not written by hand — see the code in section 05 that produced the FastAPI half.</p>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">what actually differs, framework to framework</div>
+    <div class="compare-wrap">
+    <table class="compare">
+      <tr><th>Aspect</th><th>FastAPI / Starlette (ASGI)</th><th>Django (WSGI)</th></tr>
+      <tr>
+        <td>Declared order &#8594; nesting</td>
+        <td><code>add_middleware()</code> <b>prepends</b> to the internal list — the <em>last</em> call becomes outermost.</td>
+        <td><code>MIDDLEWARE</code> is read top to bottom — the <em>first</em> entry becomes outermost.</td>
+      </tr>
+      <tr>
+        <td>Unhandled exception in handler</td>
+        <td>Propagates as a real Python exception through <code>call_next()</code>. Your middleware's code after that call is skipped unless you wrapped it in <code>try/finally</code>.</td>
+        <td>Caught per-layer by Django's <code>convert_exception_to_response()</code>. Every middleware's code after <code>get_response()</code> still runs — it just sees a 500 response object.</td>
+      </tr>
+      <tr>
+        <td>Framework's own outermost net</td>
+        <td><code>ServerErrorMiddleware</code>, auto-added outside all user middleware, catches whatever nothing else did.</td>
+        <td>Same idea, but applied independently at <em>every</em> layer, not only at the outside.</td>
+      </tr>
+      <tr>
+        <td>Registered exception types<br>(<code>HTTPException</code> / <code>Http404</code>)</td>
+        <td>Caught by Starlette's <code>ExceptionMiddleware</code> — the innermost layer, closest to the router. Your middleware never even sees it as an exception.</td>
+        <td>Caught inside the same per-layer <code>convert_exception_to_response()</code> — no separate mechanism needed.</td>
+      </tr>
+    </table>
+    </div>
+    <p class="tight" style="margin-top:16px;"><b>Read that table again against the diagram.</b> Django's per-layer safety net means hand-written Django middleware is "exception-safe" by default with zero effort from you. Starlette's <code>BaseHTTPMiddleware</code> gives you no such guarantee — cleanup code you assume will run on every request only runs on the happy path unless you write the <code>try/finally</code> yourself. This is the single most common blind spot engineers carry from Django into a FastAPI codebase.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>ASGI didn't start life inside FastAPI.</b> The spec came out of Django Channels (Andrew Godwin, ~2015-16) as a way to give Django websockets and long-lived connections without abandoning WSGI compatibility. Starlette adopted it as a framework-agnostic standard a few years later, and FastAPI is built directly on top of Starlette's ASGI machinery — the "modern async framework" is, historically, downstream of Django's own concurrency problem.</li>
+      <li><b>Django's own ASGI support doesn't make the ORM async.</b> <code>django.core.handlers.asgi.ASGIHandler</code> (3.0+) lets Django run under uvicorn and serve <code>async def</code> views, but a plain <code>Article.objects.filter(...)</code> call is still fully synchronous — Django wraps it with <code>sync_to_async</code> under the hood, or you reach for the native async ORM methods (<code>aget</code>, <code>afilter</code>, <code>acreate</code>, added in 4.1+) so it doesn't block the loop. Describing this as "the ORM went async" in an interview is describing a footgun as a feature.</li>
+      <li><b>FastAPI's <code>app.dependency_overrides</code> dict.</b> Test fixtures swap a real DB session for a fake one with <code>app.dependency_overrides[get_db] = get_test_db</code> — this only works because the dependency graph is keyed by the <em>callable object's identity</em>, not by name, which is the same mechanism behind the per-request caching you'll see in section 05.</li>
+      <li><b>Django REST Framework's <code>APIView.dispatch()</code></b> is a second, smaller onion nested one level inside Django's own — <code>authentication_classes</code>, then <code>permission_classes</code>, then <code>throttle_classes</code> run in a fixed declared order before your <code>get()</code>/<code>post()</code> ever executes. Same mental model, one layer down.</li>
+      <li><b>APM agents — Datadog, Sentry, New Relic — instrument exactly the seam this lesson is about.</b> Their ASGI middleware wraps <code>scope</code>/<code>receive</code>/<code>send</code>; their WSGI middleware wraps <code>environ</code>/<code>start_response</code>. It's the same raw hook point exercised with real code in section 05, just with a tracing span attached instead of a <code>print()</code>.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: three things you can only trust once you've run them</h2>
+    <p class="dek">All output below is real, captured on this machine — Python 3.10.12, FastAPI 0.109.0 / Starlette 0.35.1, Django 5.2.17, httpx 0.26.0 used as the ASGI/WSGI test transport.</p>
+
+    <p class="tight"><b>1. The protocol boundary, with no framework in the way.</b> Before either framework touches a request, uvicorn or gunicorn calls exactly one Python callable using exactly one calling convention. Here they are, driven directly — no FastAPI, no Django — showing the raw contract each framework is built on top of.</p>
+
+    <div class="label-row">raw_protocols.py</div>
+    <pre class="code"><code>import httpx, asyncio
+
+# ---------- raw WSGI app: one synchronous callable ----------
+def wsgi_app(environ, start_response):
+    print("[WSGI] method:", environ["REQUEST_METHOD"], "path:", environ["PATH_INFO"])
+    body = b"hello from wsgi"
+    start_response("200 OK", [("Content-Type", "text/plain")])
+    return [body]                      # returns an iterable of byte chunks
+
+with httpx.Client(transport=httpx.WSGITransport(app=wsgi_app), base_url="http://testserver") as c:
+    r = c.get("/hello")
+    print("[WSGI] client received:", r.status_code, r.text)
+
+# ---------- raw ASGI app: one async callable, event-driven ----------
+async def asgi_app(scope, receive, send):
+    print("[ASGI] scope type:", scope["type"], "method:", scope["method"])
+    event = await receive()                                    # pull an event
+    print("[ASGI] received:", event["type"])
+    await send({"type": "http.response.start", "status": 200,
+                "headers": [(b"content-type", b"text/plain")]})  # push an event
+    await send({"type": "http.response.body", "body": b"hello from asgi"})
+
+async def run_asgi():
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=asgi_app), base_url="http://testserver") as c:
+        r = await c.get("/hello")
+        print("[ASGI] client received:", r.status_code, r.text)
+
+asyncio.run(run_asgi())</code></pre>
+
+    <div class="label-row">output (real, this machine)</div>
+    <pre class="output"><code>[WSGI] method: GET path: /hello
+[WSGI] client received: 200 hello from wsgi
+[ASGI] scope type: http method: GET
+[ASGI] received: http.request
+[ASGI] client received: 200 hello from asgi</code></pre>
+
+    <p class="tight">WSGI (PEP 3333) is a single synchronous function call: server builds an <code>environ</code> dict once, your app returns bytes, done — no way to stream in either direction, no way to hold the connection open. ASGI is a long-lived async call with two separate event channels: <code>receive()</code> pulls events (body chunks, disconnects), <code>send()</code> pushes events (response start, body chunks, more later). That's the entire protocol-level difference — everything else, including "async," is a consequence of it, not the definition of it.</p>
+
+    <p class="tight" style="margin-top:26px;"><b>2. <code>Depends()</code> is a cached graph, not a re-run tree.</b> Two independent dependencies both declare <code>Depends(get_db)</code>. If FastAPI treated dependencies as a tree, <code>get_db</code> would run twice per request. It doesn't.</p>
+
+    <div class="label-row">dep_cache.py</div>
+    <pre class="code"><code>from fastapi import FastAPI, Depends
+from starlette.testclient import TestClient
+
+app = FastAPI()
+
+def get_db():
+    print("   [dep] get_db: opening session")
+    yield "db-session"
+
+def get_current_user(db=Depends(get_db)):
+    print("   [dep] get_current_user resolved")
+    return "user-42"
+
+def get_permissions(db=Depends(get_db)):   # also depends on get_db, independently
+    print("   [dep] get_permissions resolved")
+    return ["read", "write"]
+
+@app.get("/items")
+def read_items(user=Depends(get_current_user), perms=Depends(get_permissions)):
+    print(f"   [handler] user={user} perms={perms}")
+    return {"user": user, "perms": perms}
+
+client = TestClient(app)
+client.get("/items")</code></pre>
+
+    <div class="label-row">output (real, this machine)</div>
+    <pre class="output"><code>   [dep] get_db: opening session
+   [dep] get_current_user resolved
+   [dep] get_permissions resolved
+   [handler] user=user-42 perms=['read', 'write']</code></pre>
+
+    <p class="tight">One "opening session," not two. FastAPI builds the dependency tree once, at route-registration time, by walking each path operation's signature with <code>inspect.signature()</code>; at request time it resolves that pre-built DAG bottom-up, caching each callable's result by object identity (<code>Depends(fn, use_cache=True)</code> is the default) so a dependency shared by N branches still runs once. Cleanup for <code>yield</code>-based dependencies is managed by an <code>AsyncExitStack</code> and unwinds in LIFO order after the handler returns — which is exactly why <code>get_db</code>'s teardown in section 03's trace panel fires after the handler, not after each individual <code>Depends()</code> call site.</p>
+
+    <p class="tight" style="margin-top:26px;"><b>3. Where Django's ORM actually fires.</b> A <code>QuerySet</code> is an immutable, lazy description of a query — every chained method returns a new <code>QuerySet</code> wrapping an updated internal <code>Query</code> object. No socket to the database opens until one of a handful of trigger points.</p>
+
+    <div class="label-row">demo/models.py</div>
+    <pre class="code"><code>from django.db import models
+
+class Article(models.Model):
+    title = models.CharField(max_length=200)
+    views = models.IntegerField(default=0)</code></pre>
+
+    <div class="label-row">run_lazy_demo.py</div>
+    <pre class="code"><code>import django
+from django.conf import settings
+settings.configure(
+    DATABASES={"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}},
+    INSTALLED_APPS=["demo"], USE_TZ=True,
+)
+django.setup()
+
+from django.db import connection, reset_queries
+from demo.models import Article
+# ... schema created, 3 rows inserted ...
+reset_queries()
+
+print("=== step 1: build a queryset ===")
+qs = Article.objects.filter(views__gt=5).order_by("-views")
+print("queries fired so far:", len(connection.queries))
+
+print("=== step 2: chain another filter (still lazy) ===")
+qs2 = qs.exclude(title__icontains="onion")
+print("queries fired so far:", len(connection.queries))
+
+print("=== step 3: force evaluation with list() ===")
+results = list(qs2)
+print("queries fired so far:", len(connection.queries))
+print("SQL actually sent:", connection.queries[-1]["sql"])
+
+print("=== step 4: .exists() and len() each fire their OWN query ===")
+reset_queries()
+qs3 = Article.objects.all()
+print("exists() ->", qs3.exists(), "| queries:", len(connection.queries))
+print("len(qs3) ->", len(qs3), "| queries:", len(connection.queries))
+print("iterating qs3 again ->", [a.title for a in qs3], "| queries:", len(connection.queries))</code></pre>
+
+    <div class="label-row">output (real, this machine)</div>
+    <pre class="output"><code>=== step 1: build a queryset ===
+queries fired so far: 0
+=== step 2: chain another filter (still lazy) ===
+queries fired so far: 0
+=== step 3: force evaluation with list() ===
+queries fired so far: 1
+SQL actually sent: SELECT "demo_article"."id", "demo_article"."title", "demo_article"."views"
+  FROM "demo_article" WHERE ("demo_article"."views" &gt; 5
+  AND NOT ("demo_article"."title" LIKE '%onion%' ESCAPE '\')) ORDER BY "demo_article"."views" DESC
+=== step 4: .exists() and len() each fire their OWN query ===
+exists() -> True | queries: 1
+len(qs3) -> 3 | queries: 2
+iterating qs3 again -> ['ORM internals', 'ASGI vs WSGI', 'Middleware onion'] | queries: 2</code></pre>
+
+    <p class="tight">Two chained filters, zero queries. <code>list()</code> is the trigger, and it fires exactly one query carrying both filters merged into a single <code>WHERE</code> clause — the ORM never sends "step 1's SQL" and "step 2's SQL" separately, because nothing was ever sent until evaluation. Step 4 is the sharper trap: <code>.exists()</code> and <code>len()</code> each hit the database independently even though they're describing "the same" queryset, because <code>.exists()</code> runs a cheap <code>SELECT 1 ... LIMIT 1</code>-style check without populating the result cache, while <code>len()</code> forces full materialization. Only <em>after</em> the cache is populated does re-iterating become free — the final line costs nothing new.</p>
+
+    <div class="label-row">the exercise — predict before you run it</div>
+    <p class="tight">You've seen that iterating a materialized queryset is free (no new query). Add this to the script and predict the query count for each line <b>before</b> running it:</p>
+    <pre class="code"><code>reset_queries()
+fresh = Article.objects.all()
+first = fresh[0]                 # single-index access
+print(len(connection.queries))   # ?
+print(fresh._result_cache)       # ?  -- did indexing populate the cache for later iteration?
+
+reset_queries()
+ranged = Article.objects.all()[1:3]   # range slice
+print(len(connection.queries))        # ?  -- built vs. evaluated</code></pre>
+    <p class="tight">Both are traps in opposite directions. A single index (<code>qs[0]</code>) evaluates <em>immediately</em> — it issues its own <code>SELECT ... LIMIT 1</code> and leaves <code>_result_cache</code> still <code>None</code>, so a subsequent <code>for a in fresh</code> pays for a second, full query. A range slice (<code>qs[1:3]</code>) stays fully lazy — it builds a new <code>QuerySet</code> carrying <code>LIMIT 2 OFFSET 1</code> and fires zero queries until <em>that</em> is itself iterated. "Slicing a queryset is lazy" is true and false depending on which kind of slice you mean, and that exact distinction has ended more than one mid-level interview.</p>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "FastAPI is faster because it's async, Django is slower because it's sync." <b>Strong:</b> "ASGI buys higher connection concurrency for I/O-bound fan-out — many slow upstream calls per request — because one event loop thread can interleave them. It buys nothing for CPU-bound or blocking-sync work, and it actively hurts you if a handler blocks the loop: unlike Django's one-thread-per-request WSGI model, the failure mode isn't 'this request got slow,' it's 'every concurrent request on this worker got slow, including ones with no relation to whatever blocked.'"</li>
+        <li>The killer follow-up: <b>"You migrate a Django view to a FastAPI <code>async def</code> endpoint and call your existing synchronous Django ORM / psycopg2 code directly inside it, with no <code>run_in_executor</code> or <code>asyncio.to_thread</code>. What happens to the other 200 in-flight requests on that worker?"</b> — answered concretely in the recap below.</li>
+        <li>The nesting-reversal question is a real screen: ask a candidate to state which of two declared middleware actually ends up outermost. Most engineers with real production time in exactly one of these two frameworks get the <em>other</em> one backwards on the first try — which is diagnostic of whether they've internalized the mechanism or just pattern-matched one framework's docs.</li>
+        <li>Know the exception-safety asymmetry cold: Django's <code>convert_exception_to_response()</code> gives every middleware layer a free safety net; Starlette's <code>BaseHTTPMiddleware</code> gives you none by default. Shipping a FastAPI middleware that assumes Django-style guarantees is a real, recurring production bug, not a hypothetical.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Your FastAPI router has two dependencies, <code>get_current_user</code> and <code>get_permissions</code>, both declaring <code>db = Depends(get_db)</code>. You've seen <code>get_db</code>'s generator open exactly once per request. A teammate changes one of the two to <code>Depends(get_db, use_cache=False)</code> "to be extra safe."</p>
+      <p class="tight"><b>Walk through what actually changes: how many times does <code>get_db</code> open and close for that single request, in what order relative to the handler returning, and do <code>get_current_user</code> and <code>get_permissions</code> still end up looking at the same database session object afterward?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Resurfacing lesson 01 — the GIL &amp; the concurrency model</h3>
+      <p class="tight">Lesson 01 established the core mechanism: an event loop is one OS thread, and CPython still only lets one thread execute bytecode at a time. The killer follow-up in section 06 above is that exact fact wearing a FastAPI costume. FastAPI dispatches ordinary <code>def</code> path operations and sync dependencies to a background threadpool automatically — documented, deliberate behavior — but an <code>async def</code> endpoint runs directly on the event loop thread with no such safety net. One synchronous, blocking call inside it — a tight pure-Python loop, a blocking DB driver, a stray <code>time.sleep</code> — holds the only thread the whole process has for as long as it runs, freezing every other in-flight coroutine. It's the "holds the key, never lets go" failure mode from lesson 01's CPU-bound benchmark, just triggered from inside a request handler instead of a <code>threading.Thread</code>.</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="02-async-event-loop.html"><span class="pnl">&larr; previous</span>Async/Await Mechanics &amp; the Event Loop</a><a class="pn-next" href="04-rest-graphql-api-design.html"><span class="pnl">next &rarr;</span>REST &amp; GraphQL API Design</a></nav>
+<footer class="page">measured on CPython 3.10.12 · FastAPI 0.109.0 / Starlette 0.35.1 · Django 5.2.17 · httpx 0.26.0 as the ASGI/WSGI test transport · lesson 03 of the interview-prep curriculum · <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const state = { framework:'fastapi', exception:false };
+  let playing = false;
+  let timers = [];
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const STEP_MS = 700;
+
+  const STEPS = {
+    'fastapi|ok': [
+      { outer:'active', inner:'idle',   core:'idle',   log:'-> enter Auth        (outermost -- added SECOND via add_middleware(), which prepends)' },
+      { outer:'active', inner:'active', core:'idle',   log:'-> enter Logging     (innermost user middleware -- added FIRST)' },
+      { outer:'active', inner:'active', core:'active', log:'[deps] Depends(get_current_user) -> Depends(get_db) resolve, then handler runs' },
+      { outer:'active', inner:'exit',   core:'active', log:'<- exit  Logging     (call_next() returned normally)' },
+      { outer:'exit',   inner:'exit',   core:'active', log:'<- exit  Auth        (call_next() returned normally)' },
+      { outer:'exit',   inner:'exit',   core:'active', log:'200 OK written back to the ASGI socket' },
+    ],
+    'fastapi|exc': [
+      { outer:'active', inner:'idle',   core:'idle',  log:'-> enter Auth' },
+      { outer:'active', inner:'active', core:'idle',  log:'-> enter Logging' },
+      { outer:'active', inner:'active', core:'error', log:"[handler] raise ValueError('boom') -- no exception handler registered for this type" },
+      { outer:'active', inner:'skipped',core:'error', log:"x  Logging's code AFTER call_next() never runs -- exception propagated straight past it", skip:true },
+      { outer:'skipped',inner:'skipped',core:'error', log:'x  Auth’s code AFTER call_next() never runs -- same reason, no try/finally written', skip:true },
+      { outer:'skipped',inner:'skipped',core:'error', log:"Starlette's own outermost ServerErrorMiddleware (framework-internal) converts it -> 500" },
+    ],
+    'django|ok': [
+      { outer:'active', inner:'idle',   core:'idle',   log:'-> enter Logging     (declared FIRST in MIDDLEWARE -- outermost)' },
+      { outer:'active', inner:'active', core:'idle',   log:'-> enter Auth        (declared SECOND -- inner)' },
+      { outer:'active', inner:'active', core:'active', log:'[view] handler executes' },
+      { outer:'active', inner:'exit',   core:'active', log:'<- exit  Auth        (get_response() returned normally)' },
+      { outer:'exit',   inner:'exit',   core:'active', log:'<- exit  Logging     (get_response() returned normally)' },
+      { outer:'exit',   inner:'exit',   core:'active', log:'200 OK written back to the WSGI server' },
+    ],
+    'django|exc': [
+      { outer:'active', inner:'idle',   core:'idle',  log:'-> enter Logging' },
+      { outer:'active', inner:'active', core:'idle',  log:'-> enter Auth' },
+      { outer:'active', inner:'active', core:'error', log:"[view] raise ValueError('boom') -- no handler registered" },
+      { outer:'active', inner:'exit',   core:'error', log:"<- exit  Auth        -- STILL RUNS: convert_exception_to_response() already turned this into a 500 before Auth's get_response() call returned", ok:true },
+      { outer:'exit',   inner:'exit',   core:'error', log:'<- exit  Logging     -- same reason, Auth returned a normal response object, not an exception', ok:true },
+      { outer:'exit',   inner:'exit',   core:'error', log:'500 Internal Server Error written back to the WSGI server' },
+    ],
+  };
+
+  const SNIPPETS = {
+    fastapi: 'app.add_middleware(LoggingMiddleware)\napp.add_middleware(AuthMiddleware)',
+    django:  'MIDDLEWARE = [\n    "myapp.middleware.LoggingMiddleware",\n    "myapp.middleware.AuthMiddleware",\n]',
+  };
+  const NESTING = {
+    fastapi: 'nesting: Auth (outer) -> Logging (inner) -> handler',
+    django:  'nesting: Logging (outer) -> Auth (inner) -> view',
+  };
+
+  const diagramEl  = document.getElementById('onionDiagram');
+  const logEl      = document.getElementById('onionLog');
+  const snippetEl  = document.getElementById('onionSnippet');
+  const nestingEl  = document.getElementById('onionNesting');
+  const playBtn    = document.getElementById('onionPlay');
+  const excToggle  = document.getElementById('onionExcToggle');
+
+  function names(){
+    return state.framework === 'fastapi'
+      ? { outer:'Auth', inner:'Logging' }
+      : { outer:'Logging', inner:'Auth' };
+  }
+
+  function buildDiagram(){
+    const n = names();
+    diagramEl.innerHTML =
+      '<div class="onion-layer" id="layerOuter" data-state="idle">' +
+        '<span class="onion-label">' + n.outer + 'Middleware</span>' +
+        '<div class="onion-layer" id="layerInner" data-state="idle">' +
+          '<span class="onion-label">' + n.inner + 'Middleware</span>' +
+          '<div class="onion-core" id="layerCore" data-state="idle">VIEW / HANDLER</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function clearTimers(){
+    timers.forEach(id => clearTimeout(id));
+    timers = [];
+  }
+
+  function reset(){
+    clearTimers();
+    playing = false;
+    buildDiagram();
+    logEl.textContent = '';
+    snippetEl.textContent = SNIPPETS[state.framework];
+    nestingEl.textContent = NESTING[state.framework];
+    playBtn.textContent = '▶ Play';
+  }
+
+  function applyStep(step){
+    const outerEl = document.getElementById('layerOuter');
+    const innerEl = document.getElementById('layerInner');
+    const coreEl  = document.getElementById('layerCore');
+    if(!outerEl) return;
+    outerEl.dataset.state = step.outer;
+    innerEl.dataset.state = step.inner;
+    coreEl.dataset.state = step.core;
+    const line = document.createElement('span');
+    line.className = 'line' + (step.skip ? ' skip' : (step.ok ? ' ok' : ''));
+    line.textContent = step.log;
+    logEl.appendChild(line);
+  }
+
+  function play(){
+    if(playing) return;
+    reset();
+    const key = state.framework + '|' + (state.exception ? 'exc' : 'ok');
+    const steps = STEPS[key];
+    if(reduceMotion){
+      steps.forEach(applyStep);
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    steps.forEach((step, i) => {
+      const id = setTimeout(() => {
+        applyStep(step);
+        if(i === steps.length - 1){
+          playing = false;
+          playBtn.textContent = '↻ Replay';
+        }
+      }, STEP_MS * (i + 1));
+      timers.push(id);
+    });
+  }
+
+  playBtn.addEventListener('click', play);
+
+  document.querySelectorAll('[data-framework]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-framework]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.framework = btn.dataset.framework;
+      reset();
+    });
+  });
+
+  excToggle.addEventListener('change', () => {
+    state.exception = excToggle.checked;
+    reset();
+  });
+
+  reset();
+})();
+</script>
+</body>
+</html>

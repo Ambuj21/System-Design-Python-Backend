@@ -1,0 +1,1116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 35 — Design a Distributed Rate Limiter/Cache at Scale</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --amber-soft: #f2e3cc;
+    --teal: #0e7d78;
+    --teal-soft: #d7ece9;
+    --coral: #b3392e;
+    --coral-soft: #f3dcda;
+    --grey: #8790a3;
+    --grey-soft: #e6e8ee;
+    --accent: var(--amber);
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --amber-soft: #3a2f1a;
+      --teal: #57c7c1;
+      --teal-soft: #16302f;
+      --coral: #e2695c;
+      --coral-soft: #3a1f1c;
+      --grey: #6b7488;
+      --grey-soft: #232a3d;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1120px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+  .console-wrap{ }
+
+  a{ color:var(--teal); }
+  a:hover{ color:var(--amber); }
+
+  .backlink{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+    text-decoration:none;
+    display:inline-block;
+    margin-bottom:28px;
+  }
+  .backlink:hover{ color:var(--amber); }
+
+  .pagenav{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:20px;
+    margin:0 0 28px;
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+  }
+  .pagenav a{
+    color:var(--text-dim);
+    text-decoration:none;
+    display:flex;
+    flex-direction:column;
+    max-width:46%;
+  }
+  .pagenav a:hover{ color:var(--amber); }
+  .pagenav .pnl{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin-bottom:3px;
+  }
+  .pagenav .pn-next{ margin-left:auto; text-align:right; }
+  .pagenav-bottom{ margin-top:56px; padding-top:20px; border-top:1px solid var(--border); }
+
+  h1,h2,h3{
+    font-family: var(--font-mono);
+    font-weight:700;
+    text-wrap:balance;
+    letter-spacing:-0.01em;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-size:clamp(1.9rem, 4vw, 2.6rem);
+    margin:0 0 18px;
+    line-height:1.15;
+  }
+  .lede{
+    font-size:1.1rem;
+    color:var(--text-dim);
+    max-width:100%;
+    margin:0 0 8px;
+  }
+
+  section{ margin-top:64px; }
+  section > h2{
+    font-size:1.3rem;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  section > h2 .num{
+    color:var(--text-faint);
+    font-size:0.85rem;
+    font-weight:500;
+  }
+  section > .dek{
+    color:var(--text-dim);
+    margin:0 0 22px;
+    max-width:100%;
+  }
+  p{ max-width:100%; }
+  p.tight{ margin:8px 0; }
+
+  code, .mono{ font-family: var(--font-mono); }
+  code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    padding:0.1em 0.4em;
+    border-radius:4px;
+    font-size:0.9em;
+  }
+
+  pre.code, pre.output{
+    overflow-x:auto;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    font-family: var(--font-mono);
+    font-size:0.82rem;
+    line-height:1.6;
+    max-width:100%;
+  }
+  pre.output{ color:var(--text-dim); }
+  pre code{ background:none; border:none; padding:0; font-size:1em; }
+  .label-row{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:22px 0 6px;
+  }
+
+  /* ---------- analogy figure ---------- */
+  figure.analogy{
+    margin:0;
+    max-width:900px;
+    padding:20px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  figure.analogy svg{ width:100%; height:auto; display:block; }
+  figcaption{
+    margin-top:12px;
+    font-size:0.88rem;
+    color:var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------- console ---------- */
+  .console{
+    max-width:900px;
+    margin:0;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:22px 22px 26px;
+  }
+  .console-head{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .tabgroup{
+    display:inline-flex;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:2px;
+  }
+  .tabgroup button{
+    font-family: var(--font-mono);
+    font-size:0.8rem;
+    font-weight:600;
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    padding:7px 13px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .tabgroup button:hover{ color:var(--text); }
+  .tabgroup button[aria-pressed="true"]{
+    background:var(--surface);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+  }
+  .tabgroup button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+
+  .controls-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .toggle-row{ display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text-dim); }
+  .toggle-row input{ accent-color: var(--coral); width:16px; height:16px; }
+  .toggle-row.hidden{ visibility:hidden; }
+
+  .playbtn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.85rem;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:7px;
+    padding:9px 18px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    transition:filter .15s, transform .1s;
+  }
+  .playbtn:hover{ filter:brightness(1.08); }
+  .playbtn:active{ transform:translateY(1px); }
+  .playbtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  .stat-line{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+
+  .timeline{
+    position:relative;
+    overflow-x:auto;
+    padding-top:8px;
+  }
+  .timeline-inner{ min-width:520px; position:relative; }
+
+  .ruler{
+    display:flex;
+    justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.68rem;
+    color:var(--text-faint);
+    padding:0 2px 6px;
+    border-bottom:1px dashed var(--border);
+    margin-bottom:10px;
+  }
+
+  .lane{
+    display:grid;
+    grid-template-columns:78px 1fr;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .lane-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-dim);
+    text-align:right;
+  }
+  .lane-track{
+    position:relative;
+    height:30px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .seg{
+    position:absolute;
+    top:0; bottom:0;
+    transition:box-shadow .1s;
+  }
+  .seg.state-running{ background:var(--amber); }
+  .seg.state-io{ background:var(--teal); }
+  .seg.state-blocked{ background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px); }
+  .seg.state-idle{ background:var(--grey-soft); }
+  .seg.active{ box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85), 0 0 0 2px var(--text); z-index:2; }
+
+  .playhead{
+    position:absolute;
+    top:-4px; bottom:-4px;
+    width:2px;
+    background:var(--text);
+    left:0%;
+    pointer-events:none;
+    z-index:3;
+    transition:left .05s linear;
+  }
+  .playhead::after{
+    content:attr(data-t);
+    position:absolute;
+    top:-20px; left:50%;
+    transform:translateX(-50%);
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    background:var(--text);
+    color:var(--bg);
+    padding:1px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+
+  .token{
+    position:absolute;
+    left:-30px;
+    width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--amber);
+    border-radius:50%;
+    border:2px solid var(--surface);
+    box-shadow:0 2px 6px rgba(0,0,0,0.35);
+    transition:top .16s ease;
+    font-size:12px;
+    z-index:4;
+  }
+  .token.hide{ display:none; }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--border);
+    font-size:0.78rem;
+    color:var(--text-dim);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .console-note{
+    margin-top:14px;
+    font-size:0.78rem;
+    color:var(--text-faint);
+    font-style:italic;
+  }
+
+  /* ---------- benchmark bars ---------- */
+  .bench-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:22px;
+    max-width:900px;
+    margin:0;
+  }
+  @media (max-width:640px){ .bench-grid{ grid-template-columns:1fr; } }
+  .bench-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px 20px;
+  }
+  .bench-card h3{
+    font-size:0.9rem;
+    margin:0 0 3px;
+  }
+  .bench-sub{ font-size:0.75rem; color:var(--text-faint); margin-bottom:16px; }
+  .bar-row{ margin-bottom:12px; }
+  .bar-row:last-child{ margin-bottom:0; }
+  .bar-label{
+    display:flex; justify-content:space-between;
+    font-family: var(--font-mono);
+    font-size:0.76rem;
+  }
+  .bar-label .val{ font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:5px; overflow:hidden; margin-top:4px; }
+  .bar-fill{ height:100%; border-radius:5px; }
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent-c, var(--amber));
+    background:var(--surface);
+    border-radius:8px;
+    padding:18px 20px;
+    box-shadow:var(--shadow);
+    margin-top:8px;
+  }
+  .callout h3{
+    font-size:0.85rem;
+    margin:0 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .callout.interview{ --accent-c: var(--coral); }
+  .callout.check{ --accent-c: var(--teal); }
+  .callout.recap{ --accent-c: var(--grey); }
+  .callout ul{ margin:0; padding-left:20px; }
+  .callout li{ margin-bottom:8px; }
+  .callout li:last-child{ margin-bottom:0; }
+
+  .real-world li{ margin-bottom:14px; }
+  .real-world b{ color:var(--text); }
+
+  footer.page{
+    margin-top:72px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .playhead, .token, .seg{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="backlink" href="index.html">&larr; all lessons</a>
+  <nav class="pagenav pagenav-top"><a href="34-design-payments-system.html"><span class="pnl">&larr; previous</span>Design a Payments System</a><span></span></nav>
+
+  <p class="kicker">Case studies · Phase 4 · Lesson 35</p>
+  <h1>Design a Distributed Rate Limiter/Cache at Scale</h1>
+  <p class="lede">The interview question isn't "build a rate limiter" — you already did that in Lesson 24. It's "now make that limit hold across 500 stateless app servers in three regions, without the limiter itself becoming the outage it was supposed to prevent."</p>
+
+  <section id="hook">
+    <h2><span class="num">01</span> The follow-up that turns Lesson 24 into a systems question</h2>
+    <p>A candidate who's done the prep reaches for <code>TokenBucket</code> or <code>SlidingWindowLog</code> in the first minute, and that's the right instinct — for one process. The staff-level interviewer's next sentence is almost always some version of: <em>"Good. Now this has to run identically on every one of your 500 app servers, enforcing one shared limit per API key, and half your fleet is on the other side of the planet from the other half."</em> That single sentence deletes the answer you just gave. A 30-line class with a <code>threading.Lock()</code> only coordinates threads inside one interpreter — it has never heard of the other 499 processes about to import it.</p>
+    <p class="tight">Run this one like a real design interview, in order:</p>
+
+    <div class="label-row">functional requirements</div>
+    <ul style="padding-left:20px; max-width:100%;">
+      <li><code>allow(api_key) -&gt; bool</code>, enforced as <b>one logical limit</b> no matter which of the fleet's nodes happens to receive the request</li>
+      <li>per-key configurable limits (free tier vs. paid tier vs. internal service)</li>
+      <li>the limiter must not become <em>less</em> available than the service it's protecting</li>
+    </ul>
+
+    <div class="label-row">non-functional requirements — this is where staff-level answers separate from mid-level ones</div>
+    <ul style="padding-left:20px; max-width:100%;">
+      <li><b>Latency budget is tiny.</b> The check sits on every request's hot path. Low single-digit milliseconds added, not tens — this is the constraint that ends up mattering most, and most candidates never say it out loud.</li>
+      <li><b>The fleet itself isn't stable.</b> It autoscales; the coordination story has to work whether there are 20 nodes or 500, without an operator retuning anything.</li>
+      <li><b>Exactness is negotiable — say so.</b> Unlike a payments ledger, a rate limiter that admits 1,003 requests against a limit of 1,000 during a spike hasn't corrupted anything. Naming this out loud, unprompted, is the single biggest tell of a strong candidate versus a weak one.</li>
+    </ul>
+
+    <div class="label-row">capacity estimate (state every assumption out loud)</div>
+    <p class="tight">Assume <b>500 stateless app servers across 3 regions</b> (say <code>us-east</code>, <code>eu-west</code>, <code>ap-south</code>), <b>~80,000 req/s</b> aggregate traffic, and roughly <b>2,000,000 distinct active API keys</b> in a given hour, each defaulting to <b>1,000 requests/minute</b> (~16.7/s).</p>
+    <p class="tight"><b>Check throughput first, because it's the wrong villain.</b> If every one of those 80,000 req/s did a synchronous check against one central store, that's 80,000 ops/s against it. A single Redis instance's realistic ceiling for simple commands is on the order of 100K–1M ops/sec (single-threaded event loop, sub-millisecond per op — a well-known ballpark, not something benchmarked on this page). 80K/s isn't close to that ceiling. <b>The store's CPU was never going to be the bottleneck.</b></p>
+    <p class="tight"><b>Check latency next, because it is the real constraint.</b> With one central store living in one region, roughly two-thirds of that traffic is now paying a cross-region round trip on every single request — commonly-cited ballparks put same-continent hops around 30–60ms and the longer intercontinental ones well past 100ms. If your whole request budget is 100–200ms, spending 120ms just to ask "am I allowed to proceed" is not a rounding error, it's most of the budget, gone before your handler even starts.</p>
+    <p class="tight"><b>Check memory last, because it rules out an entire family of algorithms.</b> 2,000,000 active keys, each potentially needing up to 1,000 entries if you used Lesson 24's exact <code>SlidingWindowLog</code> globally, at Lesson 24's own ballpark of ~80–100 bytes per logged timestamp (Redis sorted-set member overhead) → up to <b>2,000,000 × 1,000 × 90B ≈ 180GB</b> for one data structure. That's not a scale-later problem, it's a wrong-data-structure problem, on day one. O(1)-per-key approximations (token bucket, sliding window counter) stop being an optimization at this scale and become close to mandatory.</p>
+    <p class="tight">Three numbers, three different conclusions — throughput is fine, latency-across-geography is the real limiter, and memory rules out exact per-request logs. All three of today's architectures are just different answers to "given that, where does the one source of truth live, and who has to travel to reach it?"</p>
+  </section>
+
+  <section id="analogy">
+    <h2><span class="num">02</span> One shared quota, four different doors</h2>
+    <p class="dek">Every node in the fleet needs to agree on the same number for the same key — without asking a stranger on the other side of the planet before every single decision. Consistent hashing (Lesson 26) is the trick that makes that tractable: it doesn't remove the need for a shared answer, it just guarantees every node asking about the <em>same</em> key always ends up asking the <em>same</em> shard.</p>
+    <figure class="analogy">
+      <svg viewBox="0 0 640 305" role="img" aria-label="Four app-server nodes, two in a US-East region and two in an EU-West region, each compute a hash of the API key user:42 and route it to shard-c, one of three shard stores. The two US nodes reach shard-c in about one millisecond; the two EU nodes reach the same shard in about one hundred twenty milliseconds because it is physically hosted alongside the US nodes. A caption notes that a different key would hash to a different shard, such as shard-a.">
+        <defs>
+          <marker id="arrowRL" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" fill-opacity="0.6"/>
+          </marker>
+        </defs>
+
+        <rect x="18" y="16" width="272" height="92" rx="10" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="30" y="32" font-family="ui-monospace, monospace" font-size="9.5" fill="currentColor" fill-opacity="0.6">REGION &middot; US-EAST</text>
+
+        <rect x="42" y="46" width="90" height="44" rx="7" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="87" y="65" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">N1</text>
+        <text x="87" y="79" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.55">app server</text>
+
+        <rect x="168" y="46" width="90" height="44" rx="7" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="213" y="65" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">N2</text>
+        <text x="213" y="79" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.55">app server</text>
+
+        <rect x="350" y="16" width="272" height="92" rx="10" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="362" y="32" font-family="ui-monospace, monospace" font-size="9.5" fill="currentColor" fill-opacity="0.6">REGION &middot; EU-WEST</text>
+
+        <rect x="374" y="46" width="90" height="44" rx="7" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="419" y="65" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">N3</text>
+        <text x="419" y="79" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.55">app server</text>
+
+        <rect x="500" y="46" width="90" height="44" rx="7" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.5"/>
+        <text x="545" y="65" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="currentColor">N4</text>
+        <text x="545" y="79" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.55">app server</text>
+
+        <line x1="87" y1="90" x2="165" y2="250" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4" marker-end="url(#arrowRL)"/>
+        <line x1="213" y1="90" x2="185" y2="250" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4" marker-end="url(#arrowRL)"/>
+        <line x1="419" y1="90" x2="205" y2="250" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4" marker-end="url(#arrowRL)"/>
+        <line x1="545" y1="90" x2="225" y2="250" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4" marker-end="url(#arrowRL)"/>
+
+        <text x="60" y="152" font-family="ui-monospace, monospace" font-size="9" fill="var(--teal)" font-weight="700">~1ms</text>
+        <text x="60" y="163" font-family="ui-monospace, monospace" font-size="8" fill="var(--teal)" fill-opacity="0.85">same-region (US &rarr; shard)</text>
+
+        <text x="345" y="140" font-family="ui-monospace, monospace" font-size="9" fill="var(--coral)" font-weight="700">~120ms</text>
+        <text x="345" y="151" font-family="ui-monospace, monospace" font-size="8" fill="var(--coral)" fill-opacity="0.85">cross-region (EU &rarr; shard)</text>
+
+        <text x="320" y="196" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.55">hash(api_key) picks the shard &mdash;</text>
+        <text x="320" y="207" text-anchor="middle" font-family="ui-monospace, monospace" font-size="8" fill="currentColor" fill-opacity="0.55">computed locally, costs no network call</text>
+
+        <rect x="140" y="250" width="110" height="46" rx="8" fill="var(--amber-soft)" stroke="var(--amber)" stroke-width="2.2"/>
+        <text x="195" y="266" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" fill="var(--amber)">SHARD C</text>
+        <text x="195" y="279" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="var(--amber)" fill-opacity="0.9">owns user:42's counter</text>
+        <text x="195" y="290" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7" fill="var(--amber)" fill-opacity="0.75">e.g. remaining = 12</text>
+
+        <rect x="265" y="250" width="110" height="46" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="320" y="266" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="currentColor" fill-opacity="0.75">SHARD B</text>
+        <text x="320" y="279" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.5">&asymp;1/3 of keyspace</text>
+
+        <rect x="390" y="250" width="110" height="46" rx="8" fill="var(--surface)" stroke="currentColor" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="445" y="266" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="currentColor" fill-opacity="0.75">SHARD A</text>
+        <text x="445" y="279" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.5">&asymp;1/3 of keyspace</text>
+        <text x="445" y="240" text-anchor="middle" font-family="ui-monospace, monospace" font-size="7.5" fill="currentColor" fill-opacity="0.5">a different key hashes here instead</text>
+      </svg>
+      <figcaption>All four nodes route the same key to the same shard, regardless of which region they're in — that's the one property consistent hashing guarantees. What it does <em>not</em> equalize is the physical distance to that shard: the two US nodes pay about a hundred-millisecond-less tax per check than the two EU nodes, for the exact same decision.</figcaption>
+    </figure>
+    <p class="tight">That gap — same correctness question, wildly different cost depending on who's asking — is exactly what the console below lets you pressure-test, across three different ways of answering it.</p>
+  </section>
+
+  <section id="console" class="console-wrap">
+    <h2><span class="num">03</span> Play the same skewed burst through three coordination strategies</h2>
+    <p class="dek">One hot key, one global limit of 12 requests, and a 4-node fleet whose requests arrive skewed — 10 / 8 / 4 / 2 — because that's what real load-balanced traffic actually looks like, not the tidy even split a whiteboard suggests. Same 24 requests every time; only the coordination strategy changes. Press play and watch what each one costs.</p>
+
+    <div class="console">
+      <div class="console-head">
+        <div class="tabgroup" role="group" aria-label="Coordination strategy">
+          <button data-arch="local" aria-pressed="true">No coordination</button>
+          <button data-arch="central" aria-pressed="false">Centralized sync</button>
+          <button data-arch="lease" aria-pressed="false">Sharded + lease</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <span class="stat-line" id="resourceReadout">4 app-server nodes &middot; 0 shared state &middot; each enforces its own copy of the limit</span>
+        <button class="playbtn" id="playBtn">&#9654; Play</button>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-inner" id="timelineInner">
+          <div class="ruler"><span>t=0</span><span>t=25</span><span>t=50</span><span>t=75</span><span>t=100</span></div>
+          <div id="lanes"></div>
+          <div class="playhead" id="playhead" data-t="0"></div>
+          <div class="token" id="token">&#128225;</div>
+        </div>
+      </div>
+
+      <div class="stat-line" id="liveReadout" style="margin:14px 2px 0;">global target: 12 &middot; admitted so far: 0 &middot; rejected so far: 0 &middot; shard round trips: 0</div>
+
+      <div class="legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--teal)"></span>admitted</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--coral); background-image:repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0 4px, transparent 4px 8px);"></span>rejected</span>
+        <span class="legend-item">&#128225; = one round trip to the shard</span>
+      </div>
+      <p class="console-note" id="consoleCaption">Every node enforces the full limit of 12 entirely on its own. No network calls, no shared state, no idea any other node exists — watch the total blow past the target with zero round trips paid.</p>
+    </div>
+
+    <div class="label-row" style="margin-top:34px;">the numbers behind the animation</div>
+    <p class="dek" style="margin-top:0;">Same 24-request stream, same global limit of 12, run through the actual algorithm in Section 05 (not hand-picked) for all three strategies.</p>
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>requests admitted &middot; target = 12</h3>
+        <div class="bench-sub">total across all 4 nodes, this exact run</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>no coordination</span><span class="val">24</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--coral);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>centralized sync</span><span class="val">12</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:50%; background:var(--teal);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>sharded + lease</span><span class="val">12</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:50%; background:var(--teal);"></div></div>
+        </div>
+      </div>
+      <div class="bench-card">
+        <h3>shard round trips paid</h3>
+        <div class="bench-sub">out of 24 total requests</div>
+        <div class="bar-row">
+          <div class="bar-label"><span>no coordination</span><span class="val">0</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:2%; background:var(--grey);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>centralized sync</span><span class="val">24</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%; background:var(--amber);"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span>sharded + lease</span><span class="val">6</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:25%; background:var(--amber);"></div></div>
+        </div>
+      </div>
+    </div>
+    <p class="tight" style="margin-top:18px;"><b>Notice what centralized sync actually buys you:</b> exactness, at the cost of a round trip on every single request. The lease hybrid buys back 75% of those round trips by only re-checking the shard once a node's local batch runs dry — and it's still exact, because the shard can never hand out more than it has. What it can't promise is that the twelve requests admitted are the "fairest" twelve possible; that's a separate property, with its own separate cost, covered in Section 06.</p>
+  </section>
+
+  <section id="realworld">
+    <h2><span class="num">04</span> How this shows up in systems you already use</h2>
+    <ul class="real-world" style="padding-left:20px; max-width:100%;">
+      <li><b>Kong API Gateway's rate-limiting plugin</b> ships this exact fork as a literal config value: <code>policy: local</code> (each node keeps its own counter — architecture A, fast but not globally exact) versus <code>policy: redis</code> (one shared, centralized store — architecture B). Finding the precise tradeoff this lesson is built around spelled out as a documented checkbox in a mainstream gateway is the best confirmation it isn't an academic distinction.</li>
+      <li><b>Lyft's Envoy rate-limit service (<code>ratelimit</code>)</b>, widely reused across the service-mesh ecosystem, runs as a gRPC sidecar every proxy calls synchronously before forwarding a request — a production instance of architecture B, typically backed by a Redis layer that's itself sharded by key so no single instance becomes the throughput ceiling.</li>
+      <li><b>Google/YouTube's Doorman</b>, open-sourced and described at USENIX ICAC 2015, is close to a reference implementation of architecture C: client libraries negotiate capacity <em>leases</em> from a set of coordinating servers, spend them locally, and renegotiate as their own demand shifts — the same borrow-and-spend mechanic the hands-on code below runs, at genuinely global scale.</li>
+      <li><b>Stripe's public engineering writeups</b> describe a layered design: a fast, local, best-effort check first, backed by a Redis-based GCRA implementation (the same <code>redis-cell</code>-style mechanism named in Lesson 24) as the authoritative source of truth. A cheap local check in front of an expensive authoritative one is the same move this lesson's hybrid makes, arrived at independently.</li>
+      <li><b>DynamoDB's adaptive capacity</b> is the same "hot shard" problem in a different costume: a table is partitioned by key exactly like a rate limiter's counters are sharded by key, and one popular partition key can pull far more traffic than its neighbors. DynamoDB's fix — isolating and reprovisioning the hot partition — and a rate limiter's fix for a hot key — batching harder or replicating just that one counter — are the same underlying move: absorb the imbalance, because sharding alone never fully prevents it.</li>
+    </ul>
+  </section>
+
+  <section id="handson">
+    <h2><span class="num">05</span> Hands-on: build the shard, then race three strategies against it</h2>
+    <p class="dek">Every number in Section 03's console and bar charts came from actually running this script — not hand-picked to make a point. It's a from-scratch consistent-hash ring (condensed from Lesson 26) plus one authoritative <code>Shard</code>, then three functions that hit that shard three different ways.</p>
+
+    <div class="label-row">sharded_rl.py</div>
+    <pre class="code"><code>"""
+Distributed rate limiter: three coordination strategies compared.
+
+Simulates one hot API key ("user:42") whose traffic arrives skewed across
+a 4-node fleet (10 / 8 / 4 / 2 requests) against a single global window
+limit of 12. All three architectures see the *identical* request stream --
+only the coordination strategy changes.
+"""
+
+import hashlib
+
+
+# ----------------------------------------------------------------------------
+# Consistent-hash routing: which shard is authoritative for a given key.
+# Same idea as Lesson 26's hash ring, condensed for this demo.
+# ----------------------------------------------------------------------------
+class HashRing:
+    def __init__(self, shards, vnodes=100):
+        self.ring = {}
+        for shard in shards:
+            for v in range(vnodes):
+                h = self._hash(f"{shard}#{v}")
+                self.ring[h] = shard
+        self.sorted_points = sorted(self.ring)
+
+    @staticmethod
+    def _hash(s):
+        return int(hashlib.md5(s.encode()).hexdigest(), 16)
+
+    def get_shard(self, key):
+        h = self._hash(key)
+        for point in self.sorted_points:
+            if h &lt;= point:
+                return self.ring[point]
+        return self.ring[self.sorted_points[0]]
+
+
+# ----------------------------------------------------------------------------
+# The one authoritative counter for a key's window. Only this object is
+# allowed to say yes -- everything else is a client of it.
+# ----------------------------------------------------------------------------
+class Shard:
+    def __init__(self, limit):
+        self.remaining = limit
+
+    def take(self, amount):
+        granted = min(amount, self.remaining)
+        self.remaining -= granted
+        return granted
+
+
+def build_arrival_order(node_counts):
+    """Round-robin the fleet: at each tick, every node with requests left
+    sends one. Produces the merged, time-ordered stream the shard actually
+    sees."""
+    order = []
+    remaining = dict(node_counts)
+    while any(remaining.values()):
+        for node in node_counts:
+            if remaining[node] > 0:
+                order.append(node)
+                remaining[node] -= 1
+    return order
+
+
+# ----------------------------------------------------------------------------
+# A) No coordination: each node runs its own full-capacity local bucket.
+# ----------------------------------------------------------------------------
+def run_local_only(node_counts, global_limit):
+    admitted = {}
+    for node, count in node_counts.items():
+        admitted[node] = min(count, global_limit)   # misconfig: full L, per node
+    return admitted, 0
+
+
+# ----------------------------------------------------------------------------
+# B) Centralized: every single request pays a synchronous round trip to
+#    the one authoritative shard.
+# ----------------------------------------------------------------------------
+def run_centralized(arrival_order, global_limit):
+    shard = Shard(global_limit)
+    nodes = list(dict.fromkeys(arrival_order))
+    admitted = {n: 0 for n in nodes}
+    rejected = {n: 0 for n in nodes}
+    rtts = 0
+    for node in arrival_order:
+        rtts += 1
+        if shard.take(1) == 1:
+            admitted[node] += 1
+        else:
+            rejected[node] += 1
+    return admitted, rejected, rtts
+
+
+# ----------------------------------------------------------------------------
+# C) Sharded + lease hybrid: a node borrows a batch of tokens from the
+#    shard and spends them locally; it only calls the shard again once its
+#    lease is empty. Sum of granted leases can never exceed global_limit,
+#    so this can never over-admit -- the cost it pays instead is far fewer
+#    round trips, at the risk of short-term unfairness under skew.
+# ----------------------------------------------------------------------------
+def run_lease_hybrid(arrival_order, global_limit, lease_size=4):
+    shard = Shard(global_limit)
+    nodes = list(dict.fromkeys(arrival_order))
+    local_lease = {n: 0 for n in nodes}
+    known_empty = {n: False for n in nodes}
+    admitted = {n: 0 for n in nodes}
+    rejected = {n: 0 for n in nodes}
+    rtts = 0
+    for node in arrival_order:
+        if local_lease[node] == 0:
+            if known_empty[node]:
+                rejected[node] += 1          # served from local cache, 0 RTT
+                continue
+            rtts += 1
+            granted = shard.take(lease_size)
+            local_lease[node] = granted
+            if granted == 0:
+                known_empty[node] = True
+                rejected[node] += 1
+                continue
+        local_lease[node] -= 1
+        admitted[node] += 1
+    return admitted, rejected, rtts</code></pre>
+
+    <p class="tight">Notice <code>Shard.take()</code> is the only place a decision is ever made. Everything else in this file is a client of it, deciding <em>when</em> to call it, not <em>whether</em> its answer is correct — the same separation of concerns as Lesson 24's classes, just relocated onto something network-addressable.</p>
+
+    <div class="label-row">output (real run, this machine, CPython 3.10.12)</div>
+    <pre class="output"><code>=== consistent-hash routing: which shard owns each key ===
+  user:42          -&gt; shard-c
+  user:7           -&gt; shard-a
+  user:1001        -&gt; shard-c
+  api-key:acme-co  -&gt; shard-c
+  user:42-retry    -&gt; shard-c
+
+  distribution over 3,000 synthetic keys across 3 shards: {'shard-b': 922, 'shard-c': 1132, 'shard-a': 946}
+
+request stream: {'N1': 10, 'N2': 8, 'N3': 4, 'N4': 2}  (total demand = 24)
+global window limit for this key: 12
+
+=== A) no coordination (each node enforces the full limit locally) ===
+  admitted per node : {'N1': 10, 'N2': 8, 'N3': 4, 'N4': 2}
+  total admitted    : 24 / target 12  (2.0x over, in this run)
+  worst-case ceiling: 48 (4 nodes x 12)
+  shard round trips : 0
+
+=== B) centralized synchronous check (1 RTT per request) ===
+  admitted per node : {'N1': 4, 'N2': 3, 'N3': 3, 'N4': 2}
+  rejected per node : {'N1': 6, 'N2': 5, 'N3': 1, 'N4': 0}
+  total admitted    : 12 / target 12  (exact)
+  shard round trips : 24
+
+=== C) sharded + lease hybrid (lease_size=4) ===
+  admitted per node : {'N1': 4, 'N2': 4, 'N3': 4, 'N4': 0}
+  rejected per node : {'N1': 6, 'N2': 4, 'N3': 0, 'N4': 2}
+  total admitted    : 12 / target 12  (exact)
+  shard round trips : 6  (6/24 = 25% of architecture B's round trips)
+
+=== summary ===
+strategy                    admitted    RTTs    exact?
+A: no coordination          24          0       no
+B: centralized sync         12          24      yes
+C: sharded + lease          12          6       yes</code></pre>
+
+    <p class="tight">Two things worth pausing on. First, <code>user:42</code>, <code>user:1001</code>, and <code>api-key:acme-co</code> all land on <code>shard-c</code> here — pure coincidence of a 3-shard, 100-vnode ring at this sample size, not a bug; the 3,000-key distribution line two rows down (roughly 946 / 922 / 1,132) shows the ring is balanced overall, just not perfectly even, which is itself the honest Lesson-26 lesson about vnode count and shard balance. Second, look at architecture B's per-node breakdown: <code>N4</code> sent only 2 requests and got both admitted, while <code>N1</code> sent 10 and got only 4 — the "exact" architecture is exact about the <em>total</em>, not about who wins it. Order of arrival decides that, not fairness.</p>
+
+    <div class="label-row">bonus real run — sweeping lease_size on architecture C</div>
+    <pre class="output"><code>lease_size  admitted  rtts    exact?
+1           12        15      yes
+2           12        9       yes
+4           12        6       yes
+8           12        6       yes
+12          10        4       NO</code></pre>
+    <p class="tight">Read the last row carefully — it's the most interesting one. At <code>lease_size=12</code> (equal to the whole global limit), <b>N1</b> is first in line, asks for a lease, and the shard hands over the entire budget in one grant. But <code>N1</code> only has 10 requests total — it uses 10 of its 12 borrowed tokens and the other 2 are simply stranded in a lease nobody spends, while <code>N2</code>, <code>N3</code>, and <code>N4</code> get shut out entirely. Total admitted drops to 10, <em>under</em> the target of 12. This lease design never over-admits past the global limit — the shard physically cannot hand out tokens it doesn't have — but a lease size that's too large relative to real per-node demand quietly <em>under</em>-utilizes the budget instead. That's the real tuning knob: too small and you're paying near-per-request round trips again; too large and you strand capacity in leases that never get spent.</p>
+
+    <p class="tight" style="margin-top:22px;"><b>The exercise</b> — extend <code>sharded_rl.py</code> to do these three, in order:</p>
+    <pre class="code"><code># 1. Add run_static_split(node_counts, global_limit): every node gets a
+#    fixed local budget of global_limit // len(node_counts), decided once,
+#    with zero further coordination -- ever. Run it against the same
+#    skewed 10/8/4/2 stream. Does it fix architecture A's over-admission?
+#    What new problem shows up instead, and what happens to that problem
+#    as the fleet autoscales from 4 nodes to 40?
+#
+# 2. Shard.take() above is a plain, unlocked Python method -- fine for a
+#    single-process simulation, unsafe as the real cross-machine thing.
+#    In comments only (no need to stand up real Redis), sketch what the
+#    production equivalent looks like using a Lua script or redis-cell's
+#    GCRA command, and write one sentence explaining why an ordinary
+#    INCR followed by a separate EXPIRE call is *not* safe here, even
+#    though each individual command is atomic on its own.
+#
+# 3. Add a second, independent key ("user:99") sharing the same HashRing
+#    -- and, if it happens to collide, the same physical shard as
+#    user:42. Confirm each key's admitted/rejected counts are completely
+#    unaffected by the other key's traffic. Then deliberately break
+#    isolation -- key both keys' state off the *shard's identity*
+#    instead of the key itself, as if by a real bug -- and show exactly
+#    how much damage that one mistake does.</code></pre>
+  </section>
+
+  <section id="tradeoffs">
+    <h2><span class="num">06</span> The senior/staff framing</h2>
+    <div class="callout interview">
+      <h3>What separates a strong answer from a weak one</h3>
+      <ul>
+        <li><b>Weak:</b> "I'd put the counters in Redis and check them on every request." <b>Strong:</b> "The store's raw ops/sec is rarely the actual constraint — a single instance handles hundreds of thousands of ops a second. What breaks is the round trip: at fleet-and-multi-region scale, a synchronous check adds real, user-facing latency, and a meaningful slice of the fleet isn't even in the store's region. So I'd shard the store by key with consistent hashing to bound any one shard's load, and put a local, lease-based cache in front of it — accepting a slightly softer consistency guarantee to keep the limiter's own latency off the critical path. This is a PACELC 'else' branch in the wild, Lesson 15's framework showing up with no partition anywhere in sight: even when everything is healthy and reachable, you're trading consistency for latency on every single check, on purpose, because exact-every-time costs more milliseconds than the traffic pattern can afford."</li>
+        <li>The killer follow-up: <b>"One API key just went viral, and its shard is now taking more traffic than most of your other shards combined. What do you do?"</b> This is the exact same hot-partition problem from Lesson 14, wearing a rate-limiter costume — and consistent hashing doesn't solve it, it only <em>bounds the blast radius</em> to that one shard's other keys instead of the whole system. The real levers: dynamically widen that one key's lease size once it's detected as hot (fewer round trips exactly where they're expensive); or replicate that single counter across several shards, each enforcing a fraction of the limit, accepting a small bounded slop on that one key in exchange for spreading its load. Adding more virtual nodes redistributes <em>future</em> key placement — it does nothing for a key that's already hot on the shard it landed on.</li>
+        <li>Worth naming unprompted: <b>fail-open vs. fail-closed</b> when the shard itself is unreachable. Fail-closed rejects everything until the limiter recovers — which quietly turns a rate-limiter outage into a full outage of the thing it was protecting. Fail-open admits everything during the outage instead — protection lapses exactly when you can't verify it's needed, but the service stays up. For a rate limiter specifically (unlike, say, an auth check), fail-open is very often the right default, and saying so unprompted is a strong signal.</li>
+        <li>Know that sharding the store and caching locally solve <em>two different problems</em>: sharding spreads aggregate ops/sec across many machines; local leasing cuts the number of round trips any one node pays. A system at real scale generally needs both — don't let "so you sharded it, problem solved?" pass unchallenged.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="check">
+    <h2><span class="num">07</span> Check your understanding</h2>
+    <div class="callout check">
+      <h3>Before you move on</h3>
+      <p class="tight">Two of your highest-traffic API keys happen to hash onto the same physical shard. Each key's counter is still a logically independent object on that shard — key A's requests can never consume key B's quota, and vice versa.</p>
+      <p class="tight"><b>Given that isolation still holds, what actually breaks in concrete operational terms — and what are two realistic fixes that don't require giving every single key its own dedicated shard?</b></p>
+      <p class="tight" style="color:var(--text-faint); font-size:0.85rem;">Answer this back to your mentor before starting the next lesson.</p>
+    </div>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">08</span> Spaced recap</h2>
+    <div class="callout recap">
+      <h3>Resurfacing Lesson 24 — Build a Rate Limiter in Python</h3>
+      <p class="tight">Lesson 24 built <code>TokenBucket</code> and <code>SlidingWindowLog</code> as single-process Python classes guarded by one <code>threading.Lock()</code> — correct, but only inside one interpreter's memory. Today's <code>Shard</code> is that exact same idea relocated onto a server every node in the fleet calls into: the counter is still just a couple of numbers, <code>take()</code> is still one check-then-decrement operation, and it still has to be atomic or the same over-admission bug Lesson 24's 50-thread concurrency test caught reappears — except now the "threads" are entire machines, and a Python <code>Lock()</code> can't reach across a network to stop them. Every architecture in this lesson is really just answering the one question Lesson 24 never had to: where does that single atomic operation live, and who has to travel to reach it?</p>
+    </div>
+  </section>
+
+  <nav class="pagenav pagenav-bottom"><a href="34-design-payments-system.html"><span class="pnl">&larr; previous</span>Design a Payments System</a><span></span></nav>
+<footer class="page">sharded-counter and lease simulation run on CPython 3.10.12 &middot; lesson 35 of the interview-prep curriculum &middot; <a href="index.html">back to all lessons</a></footer>
+</div>
+
+<script>
+(function(){
+  const S = { admit:'state-io', reject:'state-blocked' };
+  const NODES = ['N1','N2','N3','N4'];
+  const NODE_COUNTS = { N1:10, N2:8, N3:4, N4:2 };
+  const GLOBAL_LIMIT = 12;
+  const LEASE = 4;
+
+  function buildTicks(){
+    const remaining = Object.assign({}, NODE_COUNTS);
+    const ticks = [];
+    while(NODES.some(n=>remaining[n]>0)){
+      const tick = [];
+      NODES.forEach(n=>{ if(remaining[n]>0){ tick.push(n); remaining[n]--; } });
+      ticks.push(tick);
+    }
+    return ticks;
+  }
+  const TICKS = buildTicks();
+
+  function pushSeg(arr, tickIndex, admit, rtt){
+    arr.push({ start: tickIndex*10 + 1, end: tickIndex*10 + 9, state: admit ? S.admit : S.reject, rtt: !!rtt });
+  }
+
+  function computeArchitecture(arch){
+    const segsByNode = {}; NODES.forEach(n=>segsByNode[n]=[]);
+    const totals = { admitted:0, rejected:0, rtts:0 };
+
+    if(arch === 'local'){
+      const localRemaining = {}; NODES.forEach(n=>localRemaining[n]=GLOBAL_LIMIT);
+      TICKS.forEach((tickNodes, ti)=>{
+        tickNodes.forEach(n=>{
+          const admit = localRemaining[n] > 0;
+          if(admit){ localRemaining[n]--; totals.admitted++; } else { totals.rejected++; }
+          pushSeg(segsByNode[n], ti, admit, false);
+        });
+      });
+    } else if(arch === 'central'){
+      let shardRemaining = GLOBAL_LIMIT;
+      TICKS.forEach((tickNodes, ti)=>{
+        tickNodes.forEach(n=>{
+          totals.rtts++;
+          const admit = shardRemaining > 0;
+          if(admit){ shardRemaining--; totals.admitted++; } else { totals.rejected++; }
+          pushSeg(segsByNode[n], ti, admit, true);
+        });
+      });
+    } else {
+      let shardRemaining = GLOBAL_LIMIT;
+      const localLease = {}; const knownEmpty = {};
+      NODES.forEach(n=>{ localLease[n]=0; knownEmpty[n]=false; });
+      TICKS.forEach((tickNodes, ti)=>{
+        tickNodes.forEach(n=>{
+          let rtt = false, admit;
+          if(localLease[n] > 0){
+            admit = true; localLease[n]--;
+          } else if(knownEmpty[n]){
+            admit = false;
+          } else {
+            rtt = true; totals.rtts++;
+            const granted = Math.min(LEASE, shardRemaining);
+            shardRemaining -= granted;
+            if(granted === 0){ knownEmpty[n] = true; admit = false; }
+            else { localLease[n] = granted - 1; admit = true; }
+          }
+          if(admit) totals.admitted++; else totals.rejected++;
+          pushSeg(segsByNode[n], ti, admit, rtt);
+        });
+      });
+    }
+    return { segsByNode, totals };
+  }
+
+  const RESOURCE_TEXT = {
+    local:   '4 app-server nodes · 0 shared state · each enforces its own copy of the limit',
+    central: '4 app-server nodes · 1 shared shard · synchronous check on every request',
+    lease:   '4 app-server nodes · 1 shared shard · lease size 4, batched round trips',
+  };
+  const CAPTIONS = {
+    local:   'Every node enforces the full limit of 12 entirely on its own. No network calls, no shared state, no idea any other node exists — watch the total blow past the target with zero round trips paid.',
+    central: 'Every admitted or rejected decision costs one round trip to the shard that owns this key. Exact — the total lands on exactly 12 — but the radio icon fires on all 24 requests.',
+    lease:   'Nodes borrow a batch of 4 tokens at a time and spend them locally. Still exact — the shard never hands out more than 12 total — but the radio only fires 6 times.',
+  };
+
+  let state = { arch: 'local' };
+  let playing = false;
+  let rafId = null;
+  let startTs = null;
+  const DURATION = 4200;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const lanesEl = document.getElementById('lanes');
+  const playheadEl = document.getElementById('playhead');
+  const tokenEl = document.getElementById('token');
+  const playBtn = document.getElementById('playBtn');
+  const resourceEl = document.getElementById('resourceReadout');
+  const captionEl = document.getElementById('consoleCaption');
+  const liveEl = document.getElementById('liveReadout');
+
+  let current = null;
+
+  function render(){
+    current = computeArchitecture(state.arch);
+    lanesEl.innerHTML = '';
+    NODES.forEach(n=>{
+      const lane = document.createElement('div');
+      lane.className = 'lane';
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = n;
+      const track = document.createElement('div');
+      track.className = 'lane-track';
+      current.segsByNode[n].forEach(seg=>{
+        const d = document.createElement('div');
+        d.className = 'seg ' + seg.state;
+        d.style.left = seg.start + '%';
+        d.style.width = (seg.end - seg.start) + '%';
+        d.dataset.start = seg.start;
+        d.dataset.end = seg.end;
+        d.dataset.state = seg.state;
+        d.dataset.rtt = seg.rtt ? '1' : '0';
+        track.appendChild(d);
+      });
+      lane.appendChild(label);
+      lane.appendChild(track);
+      lanesEl.appendChild(lane);
+    });
+
+    resourceEl.textContent = RESOURCE_TEXT[state.arch];
+    captionEl.textContent = CAPTIONS[state.arch];
+    tokenEl.classList.toggle('hide', state.arch === 'local');
+
+    setPlayheadPercent(0);
+    playBtn.textContent = '▶ Play';
+    playing = false;
+    if(rafId) cancelAnimationFrame(rafId);
+
+    if(reduceMotion){
+      setPlayheadPercent(100);
+    }
+  }
+
+  function setPlayheadPercent(pct){
+    playheadEl.style.left = pct + '%';
+    playheadEl.dataset.t = 't=' + Math.round(pct);
+
+    let admitted = 0, rejected = 0, rtts = 0;
+    let tokenTop = null;
+
+    lanesEl.querySelectorAll('.lane-track').forEach(track=>{
+      track.querySelectorAll('.seg').forEach(seg=>{
+        const s = parseFloat(seg.dataset.start), e = parseFloat(seg.dataset.end);
+        const occurred = s <= pct;
+        seg.classList.toggle('active', pct >= s && pct < e && pct < 100);
+        if(occurred){
+          if(seg.dataset.state === S.admit) admitted++; else rejected++;
+          if(seg.dataset.rtt === '1') rtts++;
+        }
+        if(seg.dataset.rtt === '1' && pct >= s && pct < e){
+          tokenTop = track.offsetTop + 4;
+        }
+      });
+    });
+
+    if(tokenTop !== null){
+      tokenEl.style.top = tokenTop + 'px';
+      tokenEl.style.opacity = '1';
+    } else {
+      tokenEl.style.opacity = '0';
+    }
+
+    liveEl.textContent = 'global target: ' + GLOBAL_LIMIT + ' · admitted so far: ' + admitted +
+      ' · rejected so far: ' + rejected + ' · shard round trips: ' + rtts;
+  }
+
+  function tick(ts){
+    if(startTs === null) startTs = ts;
+    const elapsed = ts - startTs;
+    const pct = Math.min(100, (elapsed / DURATION) * 100);
+    setPlayheadPercent(pct);
+    if(pct < 100){
+      rafId = requestAnimationFrame(tick);
+    } else {
+      playing = false;
+      playBtn.textContent = '↻ Replay';
+    }
+  }
+
+  function play(){
+    if(reduceMotion){
+      setPlayheadPercent(100);
+      playBtn.textContent = '↻ Replay';
+      return;
+    }
+    startTs = null;
+    playing = true;
+    playBtn.textContent = '⏸ Playing…';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if(playing) return;
+    play();
+  });
+
+  document.querySelectorAll('[data-arch]').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-arch]').forEach(b=>b.setAttribute('aria-pressed', b===btn));
+      state.arch = btn.dataset.arch;
+      render();
+    });
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

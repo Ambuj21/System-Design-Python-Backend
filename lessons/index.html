@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lessons — System Design &amp; Python Backend</title>
+
+<style>
+  :root{
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --surface-2: #e4e7ee;
+    --border: #d1d6e0;
+    --text: #1a1f2b;
+    --text-dim: #545b6b;
+    --text-faint: #7d8496;
+    --amber: #a1620d;
+    --teal: #0e7d78;
+    --coral: #b3392e;
+    --shadow: 0 1px 2px rgba(20,24,34,0.06), 0 8px 24px -12px rgba(20,24,34,0.15);
+    --radius: 10px;
+    --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #12161f;
+      --surface: #1a2030;
+      --surface-2: #212840;
+      --border: #2b3247;
+      --text: #eef0f4;
+      --text-dim: #a7aec0;
+      --text-faint: #767e93;
+      --amber: #e8a33d;
+      --teal: #57c7c1;
+      --coral: #e2695c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -14px rgba(0,0,0,0.6);
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: var(--font-sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:64px 24px 96px;
+  }
+
+  .kicker{
+    font-family: var(--font-mono);
+    font-size:0.78rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--amber);
+    font-weight:700;
+    margin:0 0 14px;
+  }
+  h1{
+    font-family: var(--font-mono);
+    font-weight:700;
+    font-size:clamp(1.9rem, 4vw, 2.5rem);
+    margin:0 0 16px;
+    letter-spacing:-0.01em;
+    text-wrap:balance;
+  }
+  .lede{
+    font-size:1.05rem;
+    color:var(--text-dim);
+    max-width:60ch;
+    margin:0 0 8px;
+  }
+
+  .progress-strip{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin:32px 0 24px;
+    font-family:var(--font-mono);
+    font-size:0.78rem;
+    color:var(--text-faint);
+  }
+  .progress-strip .dot{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--amber);
+    flex:none;
+  }
+
+  .next-up{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--amber);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px 20px;
+    margin:0 0 44px;
+  }
+  .next-up .nu-text{
+    font-size:0.9rem;
+    color:var(--text-dim);
+    margin:0;
+    max-width:52ch;
+  }
+  .next-up .nu-text b{ color:var(--text); }
+  .next-up a.nu-btn{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:0.82rem;
+    background:var(--amber);
+    color:#1a1206;
+    text-decoration:none;
+    border-radius:7px;
+    padding:9px 16px;
+    white-space:nowrap;
+    flex:none;
+    transition:filter .15s;
+  }
+  .next-up a.nu-btn:hover{ filter:brightness(1.08); }
+
+  .phase-label{
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--text-faint);
+    margin:40px 0 14px;
+  }
+  .phase-label:first-of-type{ margin-top:0; }
+  .phase-count{
+    text-transform:none;
+    letter-spacing:normal;
+    color:var(--text-faint);
+    opacity:0.8;
+  }
+
+  ol.lessons{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .lesson-card{
+    display:block;
+    text-decoration:none;
+    color:inherit;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:18px 20px;
+    transition:border-color .15s, transform .1s;
+  }
+  .lesson-card:hover{
+    border-color:var(--amber);
+    transform:translateX(2px);
+  }
+  .lesson-card:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .lesson-head{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:baseline;
+    gap:10px 12px;
+    margin-bottom:6px;
+  }
+  .lesson-num{
+    font-family: var(--font-mono);
+    font-size:0.75rem;
+    color:var(--amber);
+    font-weight:700;
+    flex:none;
+  }
+  .lesson-title{
+    font-family: var(--font-mono);
+    font-weight:600;
+    font-size:1rem;
+    color:var(--text);
+  }
+  .lesson-desc{
+    color:var(--text-dim);
+    font-size:0.92rem;
+    max-width:62ch;
+    margin:0;
+  }
+
+  .badge{
+    display:inline-block;
+    font-family: var(--font-mono);
+    font-size:0.65rem;
+    font-weight:700;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    padding:2px 8px;
+    border-radius:20px;
+    flex:none;
+    line-height:1.5;
+  }
+  .badge.taught{ color:var(--teal); border:1px solid var(--teal); }
+  .badge.next{ color:var(--amber); border:1px solid var(--amber); }
+
+  footer.page{
+    margin-top:64px;
+    padding-top:20px;
+    border-top:1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-faint);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">Backend &amp; system design track</p>
+  <h1>Lessons</h1>
+  <p class="lede">The full course library — 35 lessons across four phases — each a self-contained, animated walkthrough of the real mechanism, not a summary of it.</p>
+
+  <div class="progress-strip"><span class="dot"></span> 1 of 35 taught so far &middot; full library on disk (generated 2026-08-19) &middot; Phase 1 in progress</div>
+
+  <div class="next-up">
+    <p class="nu-text">Generated isn't the same as learned. Only <b>Lesson 01</b> has actually been taught and understanding-checked so far — everything else below is a ready-to-teach reference library, worked through in order, one lesson at a time.</p>
+    <a class="nu-btn" href="02-async-event-loop.html">Continue &rarr; Lesson 02</a>
+  </div>
+
+  <div class="phase-label">Phase 1 &mdash; Python backend mastery <span class="phase-count">(01&ndash;10)</span></div>
+  <ol class="lessons">
+    <li>
+      <a class="lesson-card" href="01-gil-concurrency-model.html">
+        <div class="lesson-head">
+          <span class="lesson-num">01</span>
+          <span class="lesson-title">The GIL &amp; the Concurrency Model</span>
+          <span class="badge taught">taught</span>
+        </div>
+        <p class="lesson-desc">Why threading can make CPU-bound Python <em>slower</em> than sequential code, why asyncio can't help it at all, and what actually happens when a blocking call sneaks into an async handler — with a live GIL-hand-off simulator and real measured benchmarks.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="02-async-event-loop.html">
+        <div class="lesson-head">
+          <span class="lesson-num">02</span>
+          <span class="lesson-title">Async/Await Mechanics &amp; the Event Loop</span>
+          <span class="badge next">next</span>
+        </div>
+        <p class="lesson-desc">Trace exactly what await does to a coroutine and how the event loop schedules it — then use that mechanism to fix the blocking-call trap from Lesson 1 with run_in_executor and asyncio.to_thread.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="03-fastapi-django-internals.html">
+        <div class="lesson-head">
+          <span class="lesson-num">03</span>
+          <span class="lesson-title">FastAPI &amp; Django Internals</span>
+        </div>
+        <p class="lesson-desc">Trace a request through ASGI vs WSGI at the protocol level, watch the middleware onion invert between FastAPI and Django in a live console, and see exactly where Depends() caches and the ORM fires SQL — all backed by real, executed Python output.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="04-rest-graphql-api-design.html">
+        <div class="lesson-head">
+          <span class="lesson-num">04</span>
+          <span class="lesson-title">REST &amp; GraphQL API Design</span>
+        </div>
+        <p class="lesson-desc">Resource modeling and versioning, why cursor pagination beats offset at scale, idempotency-key design, and the GraphQL N+1 problem solved with DataLoader batching — with real, executed Python benchmarks throughout.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="05-orm-database-internals.html">
+        <div class="lesson-head">
+          <span class="lesson-num">05</span>
+          <span class="lesson-title">ORM &amp; Database Internals</span>
+        </div>
+        <p class="lesson-desc">Why a B-tree index costs you on every write, how to read a query planner's EXPLAIN output, which anomaly each transaction isolation level actually prevents, and what a connection pool is really buying you — with a live isolation-level/anomaly simulator and real SQLite benchmarks.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="06-redis-caching-patterns.html">
+        <div class="lesson-head">
+          <span class="lesson-num">06</span>
+          <span class="lesson-title">Redis Caching Patterns</span>
+        </div>
+        <p class="lesson-desc">Cache-aside vs write-through vs write-behind traced request-by-request, LRU/LFU/TTL eviction shown disagreeing on the same access sequence, and cache-stampede mitigations (mutex lock, probabilistic early expiration, request coalescing) measured with real Python threads against real DB-call counts.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="07-testing-strategy.html">
+        <div class="lesson-head">
+          <span class="lesson-num">07</span>
+          <span class="lesson-title">Testing Strategy for Backend Systems</span>
+        </div>
+        <p class="lesson-desc">Where exactly to put the mock boundary in a real backend service, how contract testing catches what integration tests can't, and how to read a p50/p95/p99 latency histogram — with an interactive test-pyramid simulator, real pytest output, and computed tail-latency math.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="08-profiling-performance.html">
+        <div class="lesson-head">
+          <span class="lesson-num">08</span>
+          <span class="lesson-title">Profiling &amp; Performance</span>
+        </div>
+        <p class="lesson-desc">Find real hotspots with cProfile and py-spy, read a flame graph, catch N+1 queries before they catch you, and set a latency budget that actually holds.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="09-packaging-deployment.html">
+        <div class="lesson-head">
+          <span class="lesson-num">09</span>
+          <span class="lesson-title">Packaging &amp; Deployment</span>
+        </div>
+        <p class="lesson-desc">Multi-stage Docker builds and Kubernetes rolling vs. blue-green rollouts, with a real executed simulation of the Deployment controller's surge/unavailable arithmetic driving an interactive pod-timeline console.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="10-observability.html">
+        <div class="lesson-head">
+          <span class="lesson-num">10</span>
+          <span class="lesson-title">Observability</span>
+        </div>
+        <p class="lesson-desc">RED/USE metrics and Prometheus internals, OpenTelemetry span propagation with a live trace-breaking console, and precisely defined SLIs/SLOs with burn-rate alerting — grounded in a real, executed Python tracer and histogram implementation.</p>
+      </a>
+    </li>
+  </ol>
+
+  <div class="phase-label">Phase 2 &mdash; System design fundamentals <span class="phase-count">(11&ndash;23)</span></div>
+  <ol class="lessons">
+    <li>
+      <a class="lesson-card" href="11-scalability-fundamentals.html">
+        <div class="lesson-head">
+          <span class="lesson-num">11</span>
+          <span class="lesson-title">Scalability Fundamentals</span>
+        </div>
+        <p class="lesson-desc">Vertical vs. horizontal scaling limits, why statelessness is the precondition for scaling out, and the back-of-envelope QPS/storage/bandwidth math that opens every system-design interview — with a live interactive capacity estimator.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="12-load-balancing.html">
+        <div class="lesson-head">
+          <span class="lesson-num">12</span>
+          <span class="lesson-title">Load Balancing</span>
+        </div>
+        <p class="lesson-desc">Why round robin, least connections, and consistent hashing react completely differently to the exact same overloaded backend — with a live discrete-event simulator across four algorithms, a real Python proof that consistent hashing only remaps ~1/N of your keys, and the health-check/sticky-session tradeoffs that separate a mid-level answer from a staff one.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="13-caching-strategies-invalidation.html">
+        <div class="lesson-head">
+          <span class="lesson-num">13</span>
+          <span class="lesson-title">Caching Strategies &amp; Invalidation at the Architecture Level</span>
+        </div>
+        <p class="lesson-desc">Why a cache stack with no invalidation story is a bug with a TTL attached, how TTL/purge/versioned-key strategies trade off staleness windows across CDN, edge, app, and DB layers, and how a cache-key mistake turns a performance feature into a data leak — with a live multi-layer invalidation simulator and a real thundering-herd benchmark.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="14-database-scaling-replication-sharding.html">
+        <div class="lesson-head">
+          <span class="lesson-num">14</span>
+          <span class="lesson-title">Database Scaling: Replication &amp; Sharding</span>
+        </div>
+        <p class="lesson-desc">Leader-follower replication mechanics and lag (with GitHub's 2018 split-brain incident) plus hash/range/directory sharding, resharding cost, and the hot-shard/hot-key problem — with a live shard-routing simulator and a real, measured consistent-hashing benchmark.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="15-cap-theorem-pacelc.html">
+        <div class="lesson-head">
+          <span class="lesson-num">15</span>
+          <span class="lesson-title">CAP Theorem &amp; PACELC</span>
+        </div>
+        <p class="lesson-desc">Why "pick two of three" fails a staff interview, how to classify real systems as AP/CP and PA/EL/PC/EC, with a live quorum-write simulator and a real Python cluster-partition benchmark.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="16-consistency-models.html">
+        <div class="lesson-head">
+          <span class="lesson-num">16</span>
+          <span class="lesson-title">Consistency Models</span>
+        </div>
+        <p class="lesson-desc">Strong vs. eventual vs. causal consistency, read-your-writes, and the R+W&gt;N quorum formula as a tunable knob — with a live in-browser quorum simulator and a Python script that proves the formula by brute force and by 20,000-trial Monte Carlo simulation.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="17-message-queues-streaming.html">
+        <div class="lesson-head">
+          <span class="lesson-num">17</span>
+          <span class="lesson-title">Message Queues &amp; Streaming</span>
+        </div>
+        <p class="lesson-desc">Kafka's pull-based log vs RabbitMQ's push-based broker, how at-least-once/exactly-once delivery is actually implemented under the hood, consumer-group partition assignment and rebalancing, and why one system's backpressure is enforced while the other's is just a growing lag metric.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="18-microservices-vs-monolith.html">
+        <div class="lesson-head">
+          <span class="lesson-num">18</span>
+          <span class="lesson-title">Microservices vs Monolith</span>
+        </div>
+        <p class="lesson-desc">Why splitting a monolith destroys free ACID transactions, how to decompose by bounded context instead of technical layer, and how the saga pattern (choreography vs orchestration) rebuilds atomicity by hand.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="19-api-gateways-service-mesh.html">
+        <div class="lesson-head">
+          <span class="lesson-num">19</span>
+          <span class="lesson-title">API Gateways &amp; Service Mesh</span>
+        </div>
+        <p class="lesson-desc">What an API gateway centralizes at the edge versus what a sidecar handles east-west, with a live failure-cascade simulator (gateway-only vs. mesh circuit breaking) and a real runnable Python gateway demonstrating token-bucket rate limiting, centralized auth, and routing.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="20-rate-limiting-algorithms.html">
+        <div class="lesson-head">
+          <span class="lesson-num">20</span>
+          <span class="lesson-title">Rate Limiting Algorithms</span>
+        </div>
+        <p class="lesson-desc">Token bucket, leaky bucket, fixed window, and sliding window/log compared on one real request trace, with an actual Redis race condition demonstrated and fixed live.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="21-cdns.html">
+        <div class="lesson-head">
+          <span class="lesson-num">21</span>
+          <span class="lesson-title">CDNs</span>
+        </div>
+        <p class="lesson-desc">Edge caching mechanics end to end — cache-key design, invalidation/purging strategies at global scale, and the origin-shielding single-flight pattern that stops a synchronized cache-miss stampede from taking down your origin.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="22-consensus-raft-paxos.html">
+        <div class="lesson-head">
+          <span class="lesson-num">22</span>
+          <span class="lesson-title">Consensus Basics (Raft/Paxos)</span>
+        </div>
+        <p class="lesson-desc">Leader election, log replication and commit-index advancement, and the quorum arithmetic that makes split-brain provably impossible — with an interactive 3-scenario Raft cluster simulator and a real, runnable Python election model.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="23-designing-for-failure.html">
+        <div class="lesson-head">
+          <span class="lesson-num">23</span>
+          <span class="lesson-title">Designing for Failure</span>
+        </div>
+        <p class="lesson-desc">Circuit breakers, retries with backoff and jitter, idempotency keys, timeout budgets, bulkheads, and backpressure — the toolkit for surviving partial failure, with a live protection-strategy simulator and real measured Python demos.</p>
+      </a>
+    </li>
+  </ol>
+
+  <div class="phase-label">Phase 3 &mdash; Applied system design in Python <span class="phase-count">(24&ndash;28)</span></div>
+  <ol class="lessons">
+    <li>
+      <a class="lesson-card" href="24-build-rate-limiter.html">
+        <div class="lesson-head">
+          <span class="lesson-num">24</span>
+          <span class="lesson-title">Build a Rate Limiter in Python</span>
+        </div>
+        <p class="lesson-desc">Implement a token-bucket and a sliding-window-log rate limiter from scratch in Python — thread-safe, tested for burst behavior, and demonstrated with a real reproduced race condition.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="25-build-lru-cache.html">
+        <div class="lesson-head">
+          <span class="lesson-num">25</span>
+          <span class="lesson-title">Build an LRU/LFU Cache in Python</span>
+        </div>
+        <p class="lesson-desc">Implement a true O(1) LRU cache from scratch with a doubly linked list and hashmap, contrast it with a frequency-bucket LFU variant, and verify both against real, executed Python code and a timed O(1)-vs-naive benchmark.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="26-build-consistent-hash-ring.html">
+        <div class="lesson-head">
+          <span class="lesson-num">26</span>
+          <span class="lesson-title">Build a Consistent-Hash Ring in Python</span>
+        </div>
+        <p class="lesson-desc">Implement consistent hashing with virtual nodes from scratch in Python, with an interactive ring-vs-modulo console and real measured numbers on how few keys move when nodes join or leave.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="27-build-pubsub-system.html">
+        <div class="lesson-head">
+          <span class="lesson-num">27</span>
+          <span class="lesson-title">Build a Simple Pub/Sub System in Python</span>
+        </div>
+        <p class="lesson-desc">Implement a topic-based pub/sub broker from scratch in Python — fan-out, ack-based at-least-once delivery with visibility-timeout redelivery, and three backpressure policies, with real code, real measured benchmarks, and an interactive timeline of the mechanism.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="28-build-leader-election.html">
+        <div class="lesson-head">
+          <span class="lesson-num">28</span>
+          <span class="lesson-title">Build a Toy Leader-Election Algorithm in Python</span>
+        </div>
+        <p class="lesson-desc">Implement a real event-driven Raft-style leader election in Python — terms, votes, randomized timeouts — and watch an engineered split vote fail and resolve, backed by a 2,000-trial Monte Carlo showing why the timeout window has to be wide.</p>
+      </a>
+    </li>
+  </ol>
+
+  <div class="phase-label">Phase 4 &mdash; Case studies <span class="phase-count">(29&ndash;35)</span></div>
+  <ol class="lessons">
+    <li>
+      <a class="lesson-card" href="29-design-url-shortener.html">
+        <div class="lesson-head">
+          <span class="lesson-num">29</span>
+          <span class="lesson-title">Design a URL Shortener</span>
+        </div>
+        <p class="lesson-desc">A full structured interview walkthrough for the URL-shortener classic — requirements through capacity math, counter-vs-hash-vs-range ID generation, and why the redirect path lives or dies on cache hit rate — with a live dual-mode mechanism simulator and real measured collision/cache-hit math.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="30-design-news-feed.html">
+        <div class="lesson-head">
+          <span class="lesson-num">30</span>
+          <span class="lesson-title">Design a News Feed (Twitter-like)</span>
+        </div>
+        <p class="lesson-desc">A full interview walkthrough of fan-out-on-write vs. fan-out-on-read, the celebrity/hot-user problem, and feed ranking basics — with a live cost-model simulator you can drag past the celebrity threshold and real measured Python benchmarks.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="31-design-ride-dispatch.html">
+        <div class="lesson-head">
+          <span class="lesson-num">31</span>
+          <span class="lesson-title">Design a Ride-Dispatch System (Uber-like)</span>
+        </div>
+        <p class="lesson-desc">A full structured walkthrough of Uber-style ride dispatch — geohash/quadtree spatial indexing, an interactive expanding-radius driver-matching widget, batch vs. greedy matching policy, and location-ingestion throughput, backed by real executed Python.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="32-design-video-streaming.html">
+        <div class="lesson-head">
+          <span class="lesson-num">32</span>
+          <span class="lesson-title">Design a Video Streaming Platform (Netflix-like)</span>
+        </div>
+        <p class="lesson-desc">A full structured interview walkthrough of Netflix-style video streaming — transcoding ladders, keyframe-aligned ABR segmentation, and CDN-backed delivery — anchored by a real, executed Python simulation that pits throughput-based, buffer-based (BOLA-style), and hybrid bitrate controllers against the same bandwidth cliff.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="33-design-messaging-system.html">
+        <div class="lesson-head">
+          <span class="lesson-num">33</span>
+          <span class="lesson-title">Design a Messaging System (WhatsApp-like)</span>
+        </div>
+        <p class="lesson-desc">A full structured walkthrough of WhatsApp-style messaging: the sent/delivered/read receipt state machine, per-device offline sync queues, and end-to-end encryption key-exchange basics — with a runnable Python delivery-state simulator and an interactive scenario console.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="34-design-payments-system.html">
+        <div class="lesson-head">
+          <span class="lesson-num">34</span>
+          <span class="lesson-title">Design a Payments System</span>
+        </div>
+        <p class="lesson-desc">A full structured payments-system interview walkthrough — idempotency keys for safe retries, a double-entry ledger model, and exactly where strong consistency has to live in the stack — with a real interactive retry/duplicate-charge timeline and runnable Python.</p>
+      </a>
+    </li>
+    <li>
+      <a class="lesson-card" href="35-design-distributed-rate-limiter-cache.html">
+        <div class="lesson-head">
+          <span class="lesson-num">35</span>
+          <span class="lesson-title">Design a Distributed Rate Limiter/Cache at Scale</span>
+        </div>
+        <p class="lesson-desc">A full staff-level walkthrough of enforcing one global per-key rate limit across a sharded, multi-region fleet — comparing no-coordination, synchronous-centralized, and lease-based hybrid strategies with real, verified Python simulation output.</p>
+      </a>
+    </li>
+  </ol>
+
+  <footer class="page">generated and maintained by the study curriculum &middot; rewritten after every lesson &middot; 35/35 lessons on disk, 1/35 taught as of 2026-08-19</footer>
+</div>
+</body>
+</html>
